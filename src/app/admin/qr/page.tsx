@@ -337,7 +337,7 @@ function AdminQRContent() {
       {/* Main Grid Wrapper */}
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Left Luxury Sidebar */}
-        <aside className="w-full lg:w-64 bg-[#F8F5F0] border-r border-[#E8E2D8] p-5 flex flex-col justify-between shrink-0">
+        <aside className="w-full lg:w-64 bg-[#F8F5F0] border-b lg:border-b-0 lg:border-r border-[#E8E2D8] p-5 flex flex-col justify-between shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
           <div className="space-y-6">
             {/* Brand Logo */}
             <div className="flex items-center gap-3 px-2 py-1">
@@ -444,7 +444,7 @@ function AdminQRContent() {
         </aside>
 
         {/* Right Main Content Area */}
-        <div className="flex-1 min-w-0 p-5 sm:p-8 lg:p-10 space-y-6">
+        <div className="flex-1 min-w-0 p-5 sm:p-8 lg:p-10 space-y-6 max-w-[1500px] mx-auto w-full">
           {/* Breadcrumb & Top Bar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[#7A6F63] border-b border-[#EFE9DF] pb-4">
             <div className="flex items-center gap-2 flex-wrap">

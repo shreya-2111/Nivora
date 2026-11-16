@@ -395,7 +395,7 @@ function AdminMenuCategoriesContent() {
 
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Left Fixed Sidebar */}
-        <aside className="w-full lg:w-60 xl:w-64 bg-[#FAF8F5] border-b lg:border-b-0 lg:border-r border-[#EAE3D9] p-5 sm:p-6 flex flex-col justify-between shrink-0">
+        <aside className="w-full lg:w-60 xl:w-64 bg-[#FAF8F5] border-b lg:border-b-0 lg:border-r border-[#EAE3D9] p-5 sm:p-6 flex flex-col justify-between shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
           <div className="space-y-6">
             {/* Brand Logo & Title */}
             <div className="flex items-center gap-3">
@@ -503,7 +503,7 @@ function AdminMenuCategoriesContent() {
         </aside>
 
         {/* Right Main Content Area */}
-        <div className="flex-1 min-w-0 p-5 sm:p-8 lg:p-10 space-y-6">
+        <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1500px] mx-auto">
           {/* Breadcrumb & Top Bar */}
           <div className="flex items-center justify-between">
             <nav className="flex items-center gap-2 text-xs sm:text-sm text-[#7A6F63]">

@@ -142,7 +142,7 @@ function OrderConfirmationContent() {
       )}
 
       {/* Main Container - Full Width with Responsive Max Width */}
-      <main className="w-full max-w-xl mx-auto px-4 sm:px-6 pt-3 sm:pt-6 space-y-4 sm:space-y-5">
+      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-3 sm:pt-6 space-y-4 sm:space-y-5">
         {/* Top Header Bar */}
         <header className="relative flex items-center justify-between pt-1 pb-1">
           {/* Back Button */}
@@ -446,7 +446,7 @@ function OrderConfirmationContent() {
 
       {/* Fixed Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#EAE3D8] shadow-lg">
-        <div className="max-w-md mx-auto flex items-center justify-around h-16 px-4">
+        <div className="w-full max-w-2xl mx-auto flex items-center justify-around h-16 px-4">
           {/* 1. Home */}
           <Link
             href="/guest"

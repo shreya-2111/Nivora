@@ -152,7 +152,7 @@ function WelcomeGuestContent() {
       )}
 
       {/* Main Container - Full Width with Responsive Max Width */}
-      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-8 space-y-5 sm:space-y-6">
+      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
         {/* Top Header */}
         <header className="flex items-center justify-between pt-1 pb-1">
           <div className="flex items-center gap-3.5">

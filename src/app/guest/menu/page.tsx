@@ -155,7 +155,7 @@ function FoodMenuContent() {
       )}
 
       {/* Main Container - Responsive Full Width */}
-      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
+      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
         {/* Top Header Bar */}
         <header className="flex items-center justify-between pt-1 pb-1">
           {/* Back button & Title */}
@@ -511,7 +511,7 @@ function FoodMenuContent() {
       {/* Floating Bottom Cart Bar */}
       {totalCartCount > 0 && (
         <div className="fixed bottom-20 left-0 right-0 z-30 pointer-events-none px-4">
-          <div className="max-w-xl mx-auto pointer-events-auto bg-[#2B2621] text-white p-3 sm:p-3.5 rounded-2xl shadow-2xl flex items-center justify-between border border-[#443C34] animate-fade-in">
+          <div className="max-w-2xl mx-auto pointer-events-auto bg-[#2B2621] text-white p-3 sm:p-3.5 rounded-2xl shadow-2xl flex items-center justify-between border border-[#443C34] animate-fade-in">
             <div className="flex items-center gap-3">
               {/* Bronze Cloche Icon Box */}
               <div className="w-10 h-10 rounded-xl bg-[#715535] text-white flex items-center justify-center shrink-0">
@@ -541,7 +541,7 @@ function FoodMenuContent() {
 
       {/* Fixed Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#EAE3D8] shadow-lg">
-        <div className="max-w-md mx-auto flex items-center justify-around h-16 px-4">
+        <div className="w-full max-w-2xl mx-auto flex items-center justify-around h-16 px-4">
           {/* 1. Home */}
           <Link
             href="/guest"

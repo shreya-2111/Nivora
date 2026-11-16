@@ -182,7 +182,7 @@ function AdminSettingsContent() {
       {/* Main Grid Wrapper */}
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* Left Luxury Sidebar */}
-        <aside className="w-full lg:w-64 bg-[#F8F5F0] border-r border-[#E8E2D8] p-5 flex flex-col justify-between shrink-0">
+        <aside className="w-full lg:w-64 bg-[#F8F5F0] border-b lg:border-b-0 lg:border-r border-[#E8E2D8] p-5 flex flex-col justify-between shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
           <div className="space-y-6">
             {/* Brand Logo */}
             <div className="flex items-center gap-3 px-2 py-1">
@@ -289,7 +289,7 @@ function AdminSettingsContent() {
         </aside>
 
         {/* Right Main Content Area */}
-        <div className="flex-1 min-w-0 p-5 sm:p-8 lg:p-10 space-y-6">
+        <div className="flex-1 min-w-0 p-5 sm:p-8 lg:p-10 space-y-6 max-w-[1500px] mx-auto w-full">
           {/* Breadcrumb & Top Bar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[#7A6F63] border-b border-[#EFE9DF] pb-4">
             <div className="flex items-center gap-2 flex-wrap">
@@ -470,7 +470,7 @@ function AdminSettingsContent() {
                   </div>
 
                   {/* 16:9 Hero Image Banner */}
-                  <div className="relative rounded-2xl overflow-hidden border border-[#DDD5C9] aspect-16/9 bg-[#241C15] group shadow-inner">
+                  <div className="relative rounded-2xl overflow-hidden border border-[#DDD5C9] aspect-video bg-[#241C15] group shadow-inner">
                     <Image
                       src={coverImage}
                       alt="Resort Cover Banner"
@@ -1070,7 +1070,7 @@ function AdminSettingsContent() {
                     setHasUnsavedChanges(true);
                     showToast('Assigned Oceanfront Balcony Cover.');
                   }}
-                  className="relative rounded-xl overflow-hidden aspect-16/9 border-2 border-[#705535] shadow-xs group text-left p-2 flex flex-col justify-end"
+                  className="relative rounded-xl overflow-hidden aspect-video border-2 border-[#705535] shadow-xs group text-left p-2 flex flex-col justify-end"
                 >
                   <Image
                     src="/hero-balcony.jpg"
@@ -1094,7 +1094,7 @@ function AdminSettingsContent() {
                     setHasUnsavedChanges(true);
                     showToast('Assigned Sunset Infinity Pool Cover.');
                   }}
-                  className="relative rounded-xl overflow-hidden aspect-16/9 border border-[#DDD5C9] hover:border-[#705535] shadow-xs group text-left p-2 flex flex-col justify-end"
+                  className="relative rounded-xl overflow-hidden aspect-video border border-[#DDD5C9] hover:border-[#705535] shadow-xs group text-left p-2 flex flex-col justify-end"
                 >
                   <Image
                     src="/hero-clean.jpg"
@@ -1138,7 +1138,7 @@ function AdminSettingsContent() {
             {/* Mobile Viewport Simulation */}
             <div className="bg-[#FAF8F5] rounded-2xl overflow-hidden text-[#201A15] shadow-inner border border-[#DDD5C9]">
               {/* Header Banner */}
-              <div className="relative aspect-16/9 w-full bg-black">
+              <div className="relative aspect-video w-full bg-black">
                 <Image
                   src={coverImage}
                   alt="Guest Preview Banner"
