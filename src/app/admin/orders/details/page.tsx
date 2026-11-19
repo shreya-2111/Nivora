@@ -93,17 +93,18 @@ function SteamingPanIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 function OrderDetailsAdminContent() {
   const searchParams = useSearchParams();
-  const { orders } = useNivora();
+  const { orders, updateOrderStatus } = useNivora();
 
   const queryId = searchParams.get('id');
-  const ticketNumber = queryId || '#NV-4';
+  const order = orders.find((item) => item.id === queryId);
+  const ticketNumber = order?.orderNumber || queryId || '#NV-0000';
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [orderState, setOrderState] = useState<'preparing' | 'ready' | 'voided'>('preparing');
 
   // Template toggle mode: {var} vs live data
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -121,14 +122,32 @@ function OrderDetailsAdminContent() {
     showToast('Push alert dispatched to Floor 4 Butler Marco V. via pager.');
   };
 
-  const handleMarkReady = () => {
-    setOrderState('ready');
-    showToast('Order #NV-4 marked READY FOR BUTLER. Handover alert sent.');
+  const handleMarkReady = async () => {
+    if (!order) {
+      showToast('Order not found. Refresh the orders list and try again.');
+      return;
+    }
+    try {
+      await updateOrderStatus(order.id, 'on_the_way');
+      setOrderState('ready');
+      showToast(`${ticketNumber} marked ready for delivery.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update order status.');
+    }
   };
 
-  const handleVoidTicket = () => {
-    setOrderState('voided');
-    showToast('Order ticket voided. Supervisor authorization recorded.');
+  const handleVoidTicket = async () => {
+    if (!order) {
+      showToast('Order not found. Refresh the orders list and try again.');
+      return;
+    }
+    try {
+      await updateOrderStatus(order.id, 'cancelled');
+      setOrderState('voided');
+      showToast(`${ticketNumber} was cancelled.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to cancel order.');
+    }
   };
 
   return (

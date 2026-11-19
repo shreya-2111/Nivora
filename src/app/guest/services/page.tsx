@@ -192,6 +192,8 @@ function RoomServiceContent() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isRequestSuccess, setIsRequestSuccess] = useState(false);
   const [successTicketId, setSuccessTicketId] = useState<string>('#SR-8491');
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const queryCategory = searchParams.get('category');
   const initialCategory = React.useMemo(() => {
@@ -230,7 +232,7 @@ function RoomServiceContent() {
     setSelectedAllocation(category.allocations[0]);
   };
 
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
     const finalNote = [
       selectedAllocation,
       requestNote.trim(),
@@ -239,20 +241,26 @@ function RoomServiceContent() {
       .filter(Boolean)
       .join(' — ');
 
-    const ticket = addRoomRequest({
-      roomNumber: roomNumber === '{room_number}' ? '104' : roomNumber,
-      guestName: guest?.name || 'In-Room Guest',
-      serviceCategory: selectedCategory.name,
-      requestItem: selectedAllocation,
-      urgency: deliveryWindow === 'standard' ? 'Immediate (10-15 mins)' : 'Later Today',
-      notes: finalNote,
-    });
-    const ticketId = ticket.ticketNumber || '#NV-000000';
-    setSuccessTicketId(ticketId);
-    showToast(`Request sent to Housekeeping for Room ${roomNumber}!`);
-    setTimeout(() => {
-      router.push(`/guest/services/confirmation?id=${encodeURIComponent(ticketId)}&room=${encodeURIComponent(roomNumber)}`);
-    }, 400);
+    setSubmissionError(null);
+    setIsSubmitting(true);
+    try {
+      const ticket = await addRoomRequest({
+        roomNumber,
+        guestName: guest.name,
+        serviceCategory: selectedCategory.name,
+        requestItem: selectedAllocation,
+        urgency: deliveryWindow === 'standard' ? 'Immediate (10-15 mins)' : 'Later Today',
+        notes: finalNote,
+      });
+      setSuccessTicketId(ticket.ticketNumber);
+      setIsRequestSuccess(true);
+      showToast(`Request sent to Housekeeping for Room ${roomNumber}!`);
+      router.push(`/guest/services/confirmation?id=${encodeURIComponent(ticket.id)}&room=${encodeURIComponent(roomNumber)}`);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Unable to submit your request.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -585,11 +593,15 @@ function RoomServiceContent() {
           <button
             type="button"
             onClick={handleSubmitRequest}
-            className="w-full py-4 px-6 rounded-2xl bg-[#705535] hover:bg-[#5C452A] text-white font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full py-4 px-6 rounded-2xl bg-[#705535] hover:bg-[#5C452A] text-white font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
           >
-            <span>Request Service</span>
+            <span>{isSubmitting ? 'Submitting...' : 'Request Service'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
+          {submissionError && (
+            <p role="alert" className="text-xs text-rose-700">{submissionError}</p>
+          )}
 
           <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#8A8074] text-center leading-tight">
             AUTOMATED DISPATCH TO HOUSEKEEPING FOR ROOM{' '}

@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import {
   LogOut,
   LayoutDashboard,
@@ -34,6 +33,7 @@ import {
   DoorClosed,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { apiRequest } from '@/lib/api';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -95,24 +95,23 @@ function BroomIcon({ className = 'w-5 h-5' }: { className?: string }) {
 
 export interface RoomRecord {
   id: string;
-  roomTemplate: string;
+  roomNumber: string;
   roomLive: string;
-  floorTemplate: string;
   floorLive: string;
   qrCode: string;
+  qrId?: string;
+  qrUrl?: string;
+  qrImage?: string;
   scanTime: string;
   scanCount: number;
   qrActive: boolean;
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
   lastUpdated: string;
-  wing: 'Ocean Front' | 'Veranda ROOMs' | 'Palm Wing' | 'Garden & Cabanas' | 'Presidential';
 }
 
 function AdminRoomsContent() {
-  const searchParams = useSearchParams();
-  const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLoading, setIsLoading] = useState(true);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,122 +127,54 @@ function AdminRoomsContent() {
   // New room form state
   const [newRoomNumber, setNewRoomNumber] = useState('');
   const [newFloor, setNewFloor] = useState('Floor 4');
-  const [newWing, setNewWing] = useState<RoomRecord['wing']>('Ocean Front');
   const [newStatus, setNewStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
 
-  const showToast = (msg: string) => {
+  const showToast = React.useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
-  };
+  }, []);
 
-  // 7 Room rows matching Screen 20
-  const [rooms, setRooms] = useState<RoomRecord[]>([
-    {
-      id: 'rm_1',
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: 'Room 404 (Villa Del Mar)',
-      floorTemplate: 'Floor',
-      floorLive: 'Floor 4',
-      qrCode: '#QR-RM-',
-      scanTime: 'Scanned 12m ago',
-      scanCount: 48,
-      qrActive: true,
-      status: 'ACTIVE',
-      createdAt: 'Oct 12, 2024, 09:30 AM',
-      lastUpdated: 'Today, 11:45 AM',
-      wing: 'Ocean Front',
-    },
-    {
-      id: 'rm_2',
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: 'Room 215',
-      floorTemplate: 'Floor',
-      floorLive: 'Floor 2',
-      qrCode: '#QR-RM-215',
-      scanTime: 'Scanned 1h ago',
-      scanCount: 32,
-      qrActive: true,
-      status: 'ACTIVE',
-      createdAt: 'Oct 12, 2024, 10:15 AM',
-      lastUpdated: 'Yesterday',
-      wing: 'Veranda ROOMs',
-    },
-    {
-      id: 'rm_3',
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: 'Room 512',
-      floorTemplate: 'Floor',
-      floorLive: 'Floor 5',
-      qrCode: '#QR-RM-512',
-      scanTime: 'Scanned 3h ago',
-      scanCount: 91,
-      qrActive: true,
-      status: 'ACTIVE',
-      createdAt: 'Oct 14, 2024, 02:40 PM',
-      lastUpdated: 'Dec 01, 2024',
-      wing: 'Presidential',
-    },
-    {
-      id: 'rm_4',
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: 'Cabana 04 (Lagoon)',
-      floorTemplate: 'Floor',
-      floorLive: 'Floor 1',
-      qrCode: '#QR-CAB-04',
-      scanTime: 'Scanned 8m ago',
-      scanCount: 114,
-      qrActive: true,
-      status: 'ACTIVE',
-      createdAt: 'Oct 15, 2024, 11:10 AM',
-      lastUpdated: 'Today, 08:30 AM',
-      wing: 'Garden & Cabanas',
-    },
-    {
-      id: 'rm_5',
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: 'Room 108',
-      floorTemplate: 'Floor',
-      floorLive: 'Floor 1',
-      qrCode: '#QR-RM-108',
-      scanTime: 'Scanned 4h ago',
-      scanCount: 29,
-      qrActive: true,
-      status: 'ACTIVE',
-      createdAt: 'Oct 18, 2024, 04:00 PM',
-      lastUpdated: '3 days ago',
-      wing: 'Garden & Cabanas',
-    },
-    {
-      id: 'rm_6',
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: 'Room 310',
-      floorTemplate: 'Floor',
-      floorLive: 'Floor 3',
-      qrCode: '#QR-RM-310',
-      scanTime: 'Scanned 1d ago',
-      scanCount: 87,
-      qrActive: true,
-      status: 'ACTIVE',
-      createdAt: 'Nov 02, 2024, 08:15 AM',
-      lastUpdated: 'Nov 28, 2024',
-      wing: 'Palm Wing',
-    },
-    {
-      id: 'rm_7',
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: 'Room 204',
-      floorTemplate: 'Floor',
-      floorLive: 'Floor 2',
-      qrCode: '#QR-RM-204',
-      scanTime: 'QR routing disabled',
-      scanCount: 0,
-      qrActive: false,
-      status: 'INACTIVE',
-      createdAt: 'Nov 05, 2024, 01:20 PM',
-      lastUpdated: 'Today, 09:15 AM',
-      wing: 'Veranda ROOMs',
-    },
-  ]);
+  const [rooms, setRooms] = useState<RoomRecord[]>([]);
+  const loadRooms = React.useCallback(async () => {
+    try {
+      const [roomResponse, qrResponse] = await Promise.all([
+        apiRequest<{ rooms: Array<{ id: string; room_number: string; floor: string | null; status: 'ACTIVE' | 'INACTIVE'; created_at: string; updated_at: string }> }>('/rooms'),
+        apiRequest<{ qr_codes: Array<{ id: string; room_id: string; token: string; url: string; is_active: boolean; qr_image?: string }> }>('/qr?include_image=true'),
+      ]);
+      const qrByRoom = new Map<string, (typeof qrResponse.qr_codes)[number]>();
+      for (const qr of qrResponse.qr_codes) {
+        if (!qrByRoom.has(qr.room_id)) qrByRoom.set(qr.room_id, qr);
+      }
+      setRooms(roomResponse.rooms.map((room) => {
+        const qr = qrByRoom.get(room.id);
+        const floor = room.floor || 'Unassigned';
+        return {
+          id: room.id,
+          roomNumber: room.room_number,
+          roomLive: room.room_number.match(/^room\s/i) ? room.room_number : `Room ${room.room_number}`,
+          floorLive: floor,
+          qrCode: qr ? qr.token.slice(0, 12) : 'No QR code',
+          qrId: qr?.id,
+          qrUrl: qr?.url,
+          qrImage: qr?.qr_image,
+          scanTime: qr ? (qr.is_active ? 'QR token active' : 'QR token inactive') : 'QR token not generated',
+          scanCount: 0,
+          qrActive: qr?.is_active ?? false,
+          status: room.status,
+          createdAt: new Date(room.created_at).toLocaleDateString(),
+          lastUpdated: new Date(room.updated_at).toLocaleDateString(),
+        };
+      }));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to load rooms.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    void loadRooms();
+  }, [loadRooms]);
 
   // Filtered rooms
   const filteredRooms = useMemo(() => {
@@ -261,10 +192,9 @@ function AdminRoomsContent() {
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesRoom = r.roomLive.toLowerCase().includes(q) || r.roomTemplate.toLowerCase().includes(q);
+        const matchesRoom = r.roomLive.toLowerCase().includes(q);
         const matchesQr = r.qrCode.toLowerCase().includes(q);
-        const matchesWing = r.wing.toLowerCase().includes(q);
-        if (!matchesRoom && !matchesQr && !matchesWing) return false;
+        if (!matchesRoom && !matchesQr) return false;
       }
 
       return true;
@@ -272,50 +202,73 @@ function AdminRoomsContent() {
   }, [rooms, floorFilter, statusFilter, searchQuery]);
 
   // Add Room
-  const handleAddRoom = (e: React.FormEvent) => {
+  const handleAddRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRoomNumber.trim()) return;
-
-    const num = newRoomNumber.trim();
-    const newRecord: RoomRecord = {
-      id: `rm_${Date.now()}`,
-      roomTemplate: '{ ROOM :Number }',
-      roomLive: `Room ${num}`,
-      floorTemplate: 'Floor',
-      floorLive: newFloor,
-      qrCode: `#QR-RM-${num}`,
-      scanTime: 'Registered just now',
-      scanCount: 0,
-      qrActive: newStatus === 'ACTIVE',
-      status: newStatus,
-      createdAt: 'Today, Just now',
-      lastUpdated: 'Just now',
-      wing: newWing,
-    };
-
-    setRooms((prev) => [newRecord, ...prev]);
-    setIsAddModalOpen(false);
-    setNewRoomNumber('');
-    showToast(`Room ${num} registered and provisioned with QR token`);
+    try {
+      const { room } = await apiRequest<{ room: { id: string } }>('/rooms', {
+        method: 'POST',
+        body: JSON.stringify({ room_number: newRoomNumber.trim(), floor: newFloor, status: newStatus }),
+      });
+      if (newStatus === 'ACTIVE') {
+        await apiRequest('/qr', {
+          method: 'POST',
+          body: JSON.stringify({ room_id: room.id }),
+        });
+      }
+      await loadRooms();
+      setIsAddModalOpen(false);
+      setNewRoomNumber('');
+      showToast(`Room ${newRoomNumber.trim()} registered`);
+    } catch (error) {
+      await loadRooms();
+      showToast(error instanceof Error ? error.message : 'Unable to create the room.');
+    }
   };
 
   // Save Edit
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRoom) return;
-
-    setRooms((prev) =>
-      prev.map((r) => (r.id === editingRoom.id ? { ...editingRoom, lastUpdated: 'Just now' } : r))
-    );
-    setEditingRoom(null);
-    showToast(`Room settings saved`);
+    try {
+      await apiRequest(`/rooms/${editingRoom.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          room_number: editingRoom.roomNumber,
+          floor: editingRoom.floorLive,
+          status: editingRoom.status,
+        }),
+      });
+      if (editingRoom.qrId) {
+        await apiRequest(`/qr/${editingRoom.qrId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_active: editingRoom.status === 'ACTIVE' }),
+        });
+      } else if (editingRoom.status === 'ACTIVE') {
+        await apiRequest('/qr', {
+          method: 'POST',
+          body: JSON.stringify({ room_id: editingRoom.id }),
+        });
+      }
+      await loadRooms();
+      setEditingRoom(null);
+      showToast('Room settings saved');
+    } catch (error) {
+      await loadRooms();
+      showToast(error instanceof Error ? error.message : 'Unable to save room settings.');
+    }
   };
 
   // Delete Room
-  const handleDeleteRoom = (id: string, roomName: string) => {
+  const handleDeleteRoom = async (id: string, roomName: string) => {
     if (confirm(`Are you sure you want to delete ${roomName}?`)) {
-      setRooms((prev) => prev.filter((r) => r.id !== id));
-      showToast(`Removed room record`);
+      try {
+        await apiRequest(`/rooms/${id}`, { method: 'DELETE' });
+        await loadRooms();
+        showToast('Room removed');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Unable to delete the room.');
+      }
     }
   };
 
@@ -458,16 +411,6 @@ function AdminRoomsContent() {
             </nav>
 
             <div className="flex items-center gap-4">
-              {/* Variable vs Live switcher */}
-              <button
-                type="button"
-                onClick={() => setIsLiteralMockup((v) => !v)}
-                className="text-[9px] font-bold px-2.5 py-1 rounded-md bg-[#F2EDE7] text-[#7A6F63] hover:text-[#201A15] border border-[#E5DFD5] transition cursor-pointer"
-                title="Toggle between Template Mockup and Live View"
-              >
-                {isLiteralMockup ? '{var}' : 'live'}
-              </button>
-
               <Link
                 href="/admin/login"
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
@@ -530,7 +473,7 @@ function AdminRoomsContent() {
                 </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="font-serif text-2xl sm:text-3xl font-bold text-[#201A15]">
-                    28
+                    {rooms.length}
                   </span>
                   <span className="text-xs text-[#7A6F63]">Total</span>
                 </div>
@@ -549,7 +492,7 @@ function AdminRoomsContent() {
                 </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="font-serif text-2xl sm:text-3xl font-bold text-[#201A15]">
-                    26
+                    {rooms.filter((room) => room.status === 'ACTIVE' && room.qrActive).length}
                   </span>
                   <span className="text-xs text-[#7A6F63]">Online</span>
                 </div>
@@ -568,7 +511,7 @@ function AdminRoomsContent() {
                 </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="font-serif text-2xl sm:text-3xl font-bold text-[#201A15]">
-                    2
+                    {rooms.filter((room) => room.status === 'INACTIVE').length}
                   </span>
                   <span className="text-xs text-[#7A6F63]">Offline</span>
                 </div>
@@ -657,7 +600,7 @@ function AdminRoomsContent() {
               </div>
 
               <span className="text-xs font-bold text-[#8A8074] whitespace-nowrap">
-                {filteredRooms.length} of 28 rooms
+                {filteredRooms.length} of {rooms.length} rooms
               </span>
             </div>
           </div>
@@ -732,7 +675,9 @@ function AdminRoomsContent() {
                     <tr>
                       <td colSpan={7} className="py-12 text-center text-[#8A8074]">
                         <Bed className="w-8 h-8 mx-auto text-[#C2B7A8] mb-2" />
-                        <p className="font-bold text-sm text-[#201A15]">No rooms match your filter criteria</p>
+                        <p className="font-bold text-sm text-[#201A15]">
+                          {isLoading ? 'Loading rooms…' : 'No rooms match your filter criteria'}
+                        </p>
                         <p className="text-xs text-[#8A8074] mt-0.5">Try resetting search or floor selection.</p>
                       </td>
                     </tr>
@@ -745,13 +690,13 @@ function AdminRoomsContent() {
                         {/* 1. Room Number */}
                         <td className="py-4 px-4 sm:px-6 align-middle font-bold text-sm text-[#201A15]">
                           <div>
-                            <span>{isLiteralMockup ? room.roomTemplate : room.roomLive}</span>
+                            <span>{room.roomLive}</span>
                           </div>
                         </td>
 
                         {/* 2. Floor */}
                         <td className="py-4 px-4 sm:px-6 align-middle text-xs text-[#554C42]">
-                          <span>{isLiteralMockup ? room.floorTemplate : room.floorLive}</span>
+                          <span>{room.floorLive}</span>
                         </td>
 
                         {/* 3. Associated QR Code */}
@@ -848,7 +793,7 @@ function AdminRoomsContent() {
 
             {/* Pagination Controls */}
             <div className="py-3 px-4 sm:px-6 border-t border-[#F2ECE3] bg-[#FAF8F5]/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#7A6F63]">
-              <p>Showing rows 1-7 of 28 records</p>
+              <p>Showing {filteredRooms.length} of {rooms.length} rooms</p>
 
               <div className="flex items-center gap-1.5">
                 <button
@@ -928,23 +873,6 @@ function AdminRoomsContent() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-[#201A15] uppercase tracking-wider text-[10px]">
-                    Wing / Pavilion
-                  </label>
-                  <select
-                    value={newWing}
-                    onChange={(e) => setNewWing(e.target.value as any)}
-                    className="w-full bg-white border border-[#EAE3D9] rounded-xl px-3.5 py-2.5 text-xs text-[#201A15] focus:outline-none focus:border-[#705535]"
-                  >
-                    <option value="Ocean Front">Ocean Front (F4)</option>
-                    <option value="Veranda ROOMs">Veranda ROOMs (F2)</option>
-                    <option value="Palm Wing">Palm Wing (F3)</option>
-                    <option value="Garden & Cabanas">Garden &amp; Cabanas (F1)</option>
-                    <option value="Presidential">Presidential (F5)</option>
-                  </select>
-                </div>
-
                 <div className="space-y-1">
                   <label className="font-bold text-[#201A15] uppercase tracking-wider text-[10px]">
                     Floor
@@ -1043,29 +971,16 @@ function AdminRoomsContent() {
                   type="text"
                   required
                   value={editingRoom.roomLive}
-                  onChange={(e) => setEditingRoom({ ...editingRoom, roomLive: e.target.value })}
+                  onChange={(e) => setEditingRoom({
+                    ...editingRoom,
+                    roomLive: e.target.value,
+                    roomNumber: e.target.value.replace(/^Room\s+/i, ''),
+                  })}
                   className="w-full bg-white border border-[#EAE3D9] rounded-xl px-3.5 py-2.5 text-xs text-[#201A15] focus:outline-none focus:border-[#705535]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-[#201A15] uppercase tracking-wider text-[10px]">
-                    Wing / Pavilion
-                  </label>
-                  <select
-                    value={editingRoom.wing}
-                    onChange={(e) => setEditingRoom({ ...editingRoom, wing: e.target.value as any })}
-                    className="w-full bg-white border border-[#EAE3D9] rounded-xl px-3.5 py-2.5 text-xs text-[#201A15] focus:outline-none focus:border-[#705535]"
-                  >
-                    <option value="Ocean Front">Ocean Front (F4)</option>
-                    <option value="Veranda ROOMs">Veranda ROOMs (F2)</option>
-                    <option value="Palm Wing">Palm Wing (F3)</option>
-                    <option value="Garden & Cabanas">Garden &amp; Cabanas (F1)</option>
-                    <option value="Presidential">Presidential (F5)</option>
-                  </select>
-                </div>
-
                 <div className="space-y-1">
                   <label className="font-bold text-[#201A15] uppercase tracking-wider text-[10px]">
                     Floor
@@ -1162,16 +1077,17 @@ function AdminRoomsContent() {
                   Nivora Concierge
                 </h4>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-[#8A8074]">
-                  {selectedQrRoom.wing} • {selectedQrRoom.floorLive}
+                  {selectedQrRoom.floorLive}
                 </p>
               </div>
 
-              {/* Simulated QR Code Graphic */}
+              {/* QR image is generated by the backend from the guest-session token. */}
               <div className="w-44 h-44 mx-auto rounded-xl bg-[#FAF7F2] border-2 border-dashed border-[#DDD3C7] p-3 flex flex-col items-center justify-center space-y-2">
-                <QrCode className="w-28 h-28 text-[#201A15]" />
-                <span className="font-mono text-[10px] font-bold text-[#705535]">
-                  {selectedQrRoom.qrCode}
-                </span>
+                {selectedQrRoom.qrImage ? (
+                  <img src={selectedQrRoom.qrImage} alt={`Guest QR code for ${selectedQrRoom.roomLive}`} className="w-full h-full object-contain" />
+                ) : (
+                  <span className="font-mono text-[10px] font-bold text-[#705535]">No QR code generated</span>
+                )}
               </div>
 
               <p className="text-xs text-[#554C42] leading-tight pt-1">
@@ -1195,8 +1111,12 @@ function AdminRoomsContent() {
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard?.writeText(`https://nivora.resorts/guest?room=${selectedQrRoom.id}`);
-                  showToast('Guest QR deep link copied to clipboard');
+                  if (selectedQrRoom.qrUrl) {
+                    void navigator.clipboard.writeText(selectedQrRoom.qrUrl);
+                    showToast('Guest QR link copied to clipboard');
+                  } else {
+                    showToast('Generate a QR code before copying a guest link');
+                  }
                 }}
                 className="p-2.5 rounded-xl border border-[#E8E2D8] bg-white text-[#5A5046] hover:bg-[#FAF7F2] transition cursor-pointer"
                 title="Copy URL"

@@ -11,7 +11,6 @@ import {
   Home,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
-import { mockMenuItems } from '@/data/mockData';
 import { RoomServiceRequestModal } from '@/components/guest/RoomServiceRequestModal';
 
 /* Custom SVG Icons for exact 1:1 match */
@@ -53,37 +52,22 @@ function ConciergeHandBellIcon({ className = 'w-5 h-5' }: { className?: string }
   );
 }
 
-interface CustomOption {
-  id: string;
-  name: string;
-  priceInr: number;
-}
-
-const DEFAULT_OPTIONS: CustomOption[] = [
-  { id: 'opt_1', name: '{option_name}', priceInr: 180 },
-  { id: 'opt_2', name: '{option_name}', priceInr: 250 },
-  { id: 'opt_3', name: '{option_name}', priceInr: 120 },
-];
-
 function FoodDetailsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { guest, menuItems, addToCart } = useNivora();
 
-  const itemId = searchParams.get('id') || 'menu_m1';
+  const itemId = searchParams.get('id') || '';
   const queryRoom = searchParams.get('room');
   const roomUpper = queryRoom ? `ROOM ${queryRoom}` : '{ROOM_NUMBER}';
 
-  // Find active dish or fallback to mock prime item
   const dish = useMemo(() => {
-    return menuItems.find((m) => m.id === itemId) || mockMenuItems[0];
+    return menuItems.find((menuItem) => menuItem.id === itemId);
   }, [menuItems, itemId]);
 
-  // Base price in INR matching mockup (defaults to 850 if placeholder)
-  const basePriceInr = Math.round((dish?.price || 10) * 85);
+  const basePriceInr = dish ? Math.round(dish.price * 85) : 0;
 
-  // Customization options state (Option 1 selected by default as in mockup)
-  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(['opt_1']);
+  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [specialInstruction, setSpecialInstruction] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState(false);
@@ -103,33 +87,38 @@ function FoodDetailsContent() {
 
   // Compute subtotal dynamically
   const optionsTotalInr = useMemo(() => {
-    return DEFAULT_OPTIONS.filter((opt) => selectedOptionIds.includes(opt.id)).reduce(
-      (acc, opt) => acc + opt.priceInr,
+    return (dish?.options || []).filter((option) => selectedOptionIds.includes(option.id)).reduce(
+      (acc, option) => acc + Math.round(option.price * 85),
       0
     );
-  }, [selectedOptionIds]);
+  }, [dish, selectedOptionIds]);
 
   const itemSubtotalInr = (basePriceInr + optionsTotalInr) * quantity;
 
   const handleAddToCart = () => {
-    if (dish) {
-      const selectedNames = DEFAULT_OPTIONS.filter((opt) =>
-        selectedOptionIds.includes(opt.id)
-      )
-        .map((opt) => `${opt.name} (+₹${opt.priceInr})`)
-        .join(', ');
-
-      const combinedNotes = [selectedNames, specialInstruction.trim()]
-        .filter(Boolean)
-        .join(' | ');
-
-      addToCart(dish, quantity, combinedNotes);
-      showToast(`Added ${quantity}x ${dish.name} to your tray!`);
-      setTimeout(() => {
-        router.push('/guest/cart');
-      }, 600);
+    if (!dish) {
+      showToast('This menu item is unavailable. Please return to the menu.');
+      return;
     }
+    addToCart(dish, quantity, specialInstruction.trim() || undefined, selectedOptionIds);
+    showToast(`Added ${quantity}x ${dish.name} to your tray!`);
+    setTimeout(() => {
+      router.push('/guest/cart');
+    }, 600);
   };
+
+  if (!dish) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#FAF8F5] px-6 text-center">
+        <p role="alert" className="text-sm text-[#665D52]">
+          {menuItems.length ? 'This menu item is no longer available.' : 'The menu is not available yet. Scan your room QR code to continue.'}
+        </p>
+        <Link href="/guest/menu" className="text-sm font-bold text-[#705535] underline">
+          Return to menu
+        </Link>
+      </main>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full bg-[#FAF8F5] text-[#221B14] selection:bg-[#705535]/20 selection:text-[#221B14] pb-44 antialiased">
@@ -170,33 +159,30 @@ function FoodDetailsContent() {
         <section className="relative w-full h-[260px] sm:h-[340px] md:h-[400px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-xs select-none bg-[#F2EDE7]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/overwater-dish.jpg"
-            alt="{food_name}"
+            src={dish.image}
+            alt={dish.name}
             className="w-full h-full object-cover object-center"
           />
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/25 pointer-events-none" />
 
-          {/* Top Overwater Breakfast label */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2">
             <span className="text-[11px] font-medium text-white/90 drop-shadow-sm">
-              Overwater Breakfast
+              {dish.category}
             </span>
           </div>
 
-          {/* Top Left Badge: • {VEG_NONVEG} */}
           <div className="absolute top-3.5 left-3.5 sm:top-4 sm:left-4">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md text-[#201A15] text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-xs">
               <span className="w-2 h-2 rounded-full bg-[#87552A]" />
-              <span>{'{VEG_NONVEG}'}</span>
+              <span>{dish.isVegetarian ? 'VEGETARIAN' : 'SIGNATURE'}</span>
             </span>
           </div>
 
-          {/* Top Right Badge: • {AVAILABILITY} */}
           <div className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1C4734]/90 backdrop-blur-md text-white text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-xs border border-white/20">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>{'{AVAILABILITY}'}</span>
+              <span>{dish.isAvailable === false ? 'UNAVAILABLE' : 'AVAILABLE'}</span>
             </span>
           </div>
         </section>
@@ -204,12 +190,12 @@ function FoodDetailsContent() {
         {/* Food Title, Price, Description */}
         <section className="space-y-1 pt-1">
           <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-bold text-[#201A15] tracking-tight">
-            {'{food_name}'}
+            {dish.name}
           </h2>
 
           <div className="flex items-center gap-2 pt-0.5">
             <span className="font-serif text-2xl sm:text-3xl font-bold text-[#705535]">
-              ₹{'{price}'}
+              ₹{basePriceInr.toLocaleString('en-IN')}
             </span>
             <span className="text-[11px] font-bold uppercase tracking-widest text-[#8A8074]">
               PER SERVING
@@ -217,7 +203,7 @@ function FoodDetailsContent() {
           </div>
 
           <p className="text-xs sm:text-sm text-[#665D53] leading-relaxed pt-1">
-            {'{description}'}
+            {dish.description}
           </p>
         </section>
 
@@ -231,7 +217,7 @@ function FoodDetailsContent() {
           </p>
 
           <div className="space-y-2.5">
-            {DEFAULT_OPTIONS.map((opt) => {
+            {(dish.options || []).filter((option) => option.isActive).map((opt) => {
               const isChecked = selectedOptionIds.includes(opt.id);
               return (
                 <div
@@ -257,7 +243,7 @@ function FoodDetailsContent() {
                   </div>
 
                   <span className="text-xs sm:text-sm font-bold text-[#705535]">
-                    +₹{opt.priceInr}
+                    +₹{Math.round(opt.price * 85).toLocaleString('en-IN')}
                   </span>
                 </div>
               );

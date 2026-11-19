@@ -75,13 +75,13 @@ function AdminOrdersContent() {
   const { orders } = useNivora();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'All' | 'New' | 'Preparing' | 'Ready' | 'Delivered'>('All');
+  const [activeFilter, setActiveFilter] = useState<'All' | 'New' | 'Preparing' | 'Ready' | 'Delivered' | 'Rejected'>('All');
   const [showNewOrderBanner, setShowNewOrderBanner] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Template toggle mode: {var} vs live data
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -178,8 +178,43 @@ function AdminOrdersContent() {
     []
   );
 
+  const liveOrders = orders.map((order) => {
+    const statusCategory =
+      order.backendStatus === 'NEW' || order.backendStatus === 'ACCEPTED' ? 'New'
+        : order.backendStatus === 'PREPARING' ? 'Preparing'
+          : order.backendStatus === 'READY' ? 'Ready'
+            : order.backendStatus === 'DELIVERED' ? 'Delivered'
+              : 'Rejected';
+    const statusBadgeType =
+      order.backendStatus === 'NEW' ? 'new'
+        : order.backendStatus === 'ACCEPTED' ? 'accepted'
+          : order.backendStatus === 'PREPARING' ? 'preparing'
+            : order.backendStatus === 'READY' ? 'ready'
+              : order.backendStatus === 'DELIVERED' ? 'delivered'
+                : 'rejected';
+    return {
+      id: order.id,
+      room: `ROOM ${order.roomNumber}`,
+      items: order.items.map((item) => `${item.quantity}x ${item.name}`).join(', '),
+      note: order.deliveryNotes || '',
+      total: Math.round(order.totalAmount * 85).toLocaleString('en-IN'),
+      billingNote: 'Charge to Room',
+      status: order.backendStatus || '',
+      statusCategory,
+      statusBadgeType,
+      time: order.placedAt,
+      timeAgo: '',
+      isClocheService: false,
+      isDeliveredNote: false,
+      isRejectedAlert: false,
+      isVoided: order.backendStatus === 'REJECTED' || order.backendStatus === 'CANCELLED',
+      isUrgentTime: order.backendStatus === 'NEW',
+    };
+  });
+  const displayedOrders = isLiteralMockup ? allMockupOrders : liveOrders;
+
   const filteredOrders = useMemo(() => {
-    return allMockupOrders.filter((ord) => {
+    return displayedOrders.filter((ord) => {
       if (activeFilter !== 'All' && ord.statusCategory !== activeFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -191,7 +226,7 @@ function AdminOrdersContent() {
       }
       return true;
     });
-  }, [allMockupOrders, activeFilter, searchQuery]);
+  }, [displayedOrders, activeFilter, searchQuery]);
 
   return (
     <div className="min-h-screen w-full bg-[#FAF8F5] text-[#221B14] selection:bg-[#705535]/20 selection:text-[#221B14] flex flex-col justify-between antialiased">

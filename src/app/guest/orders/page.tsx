@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -114,24 +114,47 @@ function SuiteDoorIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 function OrderStatusContent() {
   const searchParams = useSearchParams();
-  const { guest, orders, activeOrder } = useNivora();
+  const { guest, orders, activeOrder, refreshOrder } = useNivora();
 
   const queryRoom = searchParams.get('room');
   const roomNumber = queryRoom || guest?.roomNumber || '{room_number}';
   const queryOrderId = searchParams.get('id');
 
-  const latestOrder = orders[0] || activeOrder;
-  const orderId = queryOrderId || latestOrder?.orderNumber || '#NV-2895';
+  const latestOrder = orders.find((order) => order.id === queryOrderId) || orders[0] || activeOrder;
+  const orderId = latestOrder?.orderNumber || '#NV-000000';
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState(false);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
 
-  // Template toggle mode so reviewer can see literal mockup {variables} or live rich dish calculation
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
 
-  // Interactive current step (defaults to Step 3 "Preparing" matching the screenshot)
-  const [currentStep, setCurrentStep] = useState<number>(3);
+  const currentStep = latestOrder?.status === 'placed' ? 1
+    : latestOrder?.status === 'preparing' ? 3
+      : latestOrder?.status === 'on_the_way' ? 4
+        : latestOrder?.status === 'delivered' ? 5
+          : 1;
+
+  useEffect(() => {
+    if (!queryOrderId) return;
+    let active = true;
+    const refresh = () => {
+      void refreshOrder(queryOrderId).then(() => {
+        if (active) setTrackingError(null);
+      }).catch((error: unknown) => {
+        if (active) {
+          setTrackingError(error instanceof Error ? error.message : 'Unable to refresh order status.');
+        }
+      });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [queryOrderId, refreshOrder]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -146,6 +169,11 @@ function OrderStatusContent() {
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
+      )}
+      {trackingError && (
+        <p role="alert" className="mx-auto mt-3 max-w-2xl px-4 text-center text-xs text-rose-700">
+          {trackingError}
+        </p>
       )}
 
       {/* Main Container - Responsive Full Width */}

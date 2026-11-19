@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
 import {
   LogOut,
   LayoutDashboard,
@@ -40,6 +39,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { apiRequest } from '@/lib/api';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -96,15 +96,12 @@ export interface MenuItemData {
 }
 
 function AdminMenuItemsContent() {
-  const searchParams = useSearchParams();
-  const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
-
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDiet, setSelectedDiet] = useState<'All' | 'Veg' | 'Non-Veg'>('All');
   const [selectedStatus, setSelectedStatus] = useState<'All' | 'Available' | '86d'>('All');
-  const [selectedCategory, setSelectedCategory] = useState('All Categories (42)');
+  const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -114,7 +111,7 @@ function AdminMenuItemsContent() {
 
   // Add Item form state
   const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState('Handcrafted Sandwiches & Burgers');
+  const [newCategory, setNewCategory] = useState('');
   const [newPrice, setNewPrice] = useState(850);
   const [newSku, setNewSku] = useState('NV-NEW-01');
   const [newTag, setNewTag] = useState('Chef Recommendation');
@@ -124,123 +121,66 @@ function AdminMenuItemsContent() {
     'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=300&q=80'
   );
 
-  const showToast = (msg: string) => {
+  const showToast = React.useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
-  };
+  }, []);
 
-  // Initial 7 Mockup items matching Screen 18
-  const [menuItems, setMenuItems] = useState<MenuItemData[]>([
-    {
-      id: 'item_1',
-      rank: 1,
-      title: 'Artisanal Wagyu Burger',
-      description: 'Prime wagyu patty, brioche bun, aged truffle aioli, aged...',
-      sku: 'SKU: NV-BUR-01',
-      tag: '5-Star Rated',
-      category: 'Handcrafted Sandwiches & Burgers',
-      isVeg: false,
-      price: 925,
-      isAvailable: true,
-      image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      id: 'item_2',
-      rank: 2,
-      title: 'Maine Lobster Tail Roll',
-      description: 'Poached Maine lobster, toasted milk bread, clarified...',
-      sku: 'SKU: NV-SEA-02',
-      tag: 'Chef Signature',
-      category: 'Handcrafted Sandwiches & Burgers',
-      isVeg: false,
-      price: 1150,
-      isAvailable: true,
-      image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      id: 'item_3',
-      rank: 1,
-      title: 'San Pellegrino Sparkling (750ml)',
-      description: 'Chilled mineral sparkling water served with fresh organic',
-      sku: 'SKU: NV-BEV-04',
-      tag: 'Cellar Reserved',
-      category: 'Signature Beverages & Refreshments',
-      isVeg: true,
-      price: 350,
-      isAvailable: true,
-      image: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      id: 'item_4',
-      rank: 1,
-      title: 'Valrhona Dark Chocolate Tart',
-      description: '70% single-origin dark chocolate ganache, candied...',
-      sku: 'SKU: NV-DES-08',
-      tag: 'Pastry Atelier',
-      category: 'Desserts & Sweet Delicacies',
-      isVeg: true,
-      price: 450,
-      isAvailable: true,
-      image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      id: 'item_5',
-      rank: 1,
-      title: 'Wild Forest Mushroom & Truffle Risotto',
-      description: 'Acquerello carnaroli rice, foraged chanterelles, 24-month',
-      sku: 'SKU: NV-RIS-03',
-      tag: 'Organic Italian',
-      category: 'Gourmet Mains & Grills',
-      isVeg: true,
-      price: 850,
-      isAvailable: true,
-      image: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      id: 'item_6',
-      rank: 2,
-      title: 'Grilled Chilean Sea Bass',
-      description: 'Pan-seared sea bass, saffron emulsion, braised fennel,...',
-      sku: 'SKU: NV-SEA-05',
-      tag: 'Fresh Catch',
-      category: 'Gourmet Mains & Grills',
-      isVeg: false,
-      price: 1400,
-      isAvailable: false,
-      unavailableNotice: 'Out of stock • Next delivery tomorrow 07:00 AM',
-      image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=300&q=80',
-    },
-    {
-      id: 'item_7',
-      rank: 1,
-      title: 'Avocado & Burrata Tartine',
-      description: 'Crushed Hass avocado, pugliese sourdough, heirloom...',
-      sku: 'SKU: NV-BRK-09',
-      tag: 'Morning Special',
-      category: 'Artisanal Breakfast & Bakery',
-      isVeg: true,
-      price: 550,
-      isAvailable: true,
-      image: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=300&q=80',
-    },
-  ]);
+  const [menuItems, setMenuItems] = useState<MenuItemData[]>([]);
 
-  // Categories list for filtering
-  const categoryFilters = [
-    'All Categories (42)',
-    'Artisanal Breakfast & Bakery',
-    'Gourmet Mains & Grills',
-    'Handcrafted Sandwiches & Burgers',
-    'Fresh Salads & Starters',
-    'Desserts & Sweet Delicacies',
-    'Signature Beverages & Refreshments',
-  ];
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const loadMenuItems = React.useCallback(async () => {
+    try {
+      const { categories: apiCategories } = await apiRequest<{
+        categories: Array<{
+          id: string;
+          name: string;
+          items: Array<{
+            id: string;
+            name: string;
+            description: string | null;
+            price: number;
+            image_url: string | null;
+            is_vegetarian: boolean;
+            is_available: boolean;
+            sort_order: number;
+          }>;
+        }>;
+      }>('/menu');
+      setCategories(apiCategories.map(({ id, name }) => ({ id, name })));
+      setNewCategory((current) => current || apiCategories[0]?.name || '');
+      setMenuItems(apiCategories.flatMap((category) => category.items.map((item) => ({
+        id: item.id,
+        rank: item.sort_order,
+        title: item.name,
+        description: item.description || '',
+        sku: item.id.slice(0, 8),
+        tag: '',
+        category: category.name,
+        isVeg: item.is_vegetarian,
+        price: Number(item.price),
+        isAvailable: item.is_available,
+        image: item.image_url || '/overwater-dish.jpg',
+      }))));
+    } catch (error) {
+      setMenuItems([]);
+      showToast(error instanceof Error ? error.message : 'Unable to load menu items.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    void loadMenuItems();
+  }, [loadMenuItems]);
+
+  const categoryFilters = ['All Categories', ...categories.map((category) => category.name)];
 
   // Filtered menu items
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
       // Category filter
-      if (selectedCategory !== 'All Categories (42)' && item.category !== selectedCategory) {
+      if (selectedCategory !== 'All Categories' && item.category !== selectedCategory) {
         return false;
       }
 
@@ -269,65 +209,90 @@ function AdminMenuItemsContent() {
   }, [menuItems, selectedCategory, selectedDiet, selectedStatus, searchQuery]);
 
   // Stats
-  const totalDishesCount = 42;
+  const totalDishesCount = menuItems.length;
   const availableCount = menuItems.filter((i) => i.isAvailable).length;
   const unavailableCount = menuItems.filter((i) => !i.isAvailable).length;
 
   // Toggle item availability (86'd)
-  const toggleAvailability = (itemId: string, title: string) => {
-    setMenuItems((prev) =>
-      prev.map((i) =>
-        i.id === itemId
-          ? {
-              ...i,
-              isAvailable: !i.isAvailable,
-              unavailableNotice: !i.isAvailable
-                ? undefined
-                : 'Out of stock • Next delivery tomorrow 07:00 AM',
-            }
-          : i
-      )
-    );
-    showToast(`Updated status for "${title}"`);
+  const toggleAvailability = async (itemId: string, title: string) => {
+    const item = menuItems.find((entry) => entry.id === itemId);
+    if (!item) return;
+    try {
+      await apiRequest(`/menu/items/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_available: !item.isAvailable }),
+      });
+      await loadMenuItems();
+      showToast(`Availability updated for "${title}".`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update item availability.');
+    }
   };
 
   // Add Item
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-
-    const newItem: MenuItemData = {
-      id: `item_${Date.now()}`,
-      rank: 1,
-      title: newTitle.trim(),
-      description: newDesc.trim() || 'Prepared fresh by the culinary atelier.',
-      sku: `SKU: ${newSku.trim().toUpperCase()}`,
-      tag: newTag.trim() || 'New Item',
-      category: newCategory,
-      isVeg: newIsVeg,
-      price: Number(newPrice) || 500,
-      isAvailable: true,
-      image: newImage,
-    };
-
-    setMenuItems((prev) => [newItem, ...prev]);
-    setIsAddModalOpen(false);
-    setNewTitle('');
-    setNewDesc('');
-    showToast(`Added "${newItem.title}" to catalog`);
+    const selectedCategory = categories.find((category) => category.name === newCategory);
+    if (!selectedCategory) {
+      showToast('Choose a menu category before adding this item.');
+      return;
+    }
+    try {
+      await apiRequest('/menu/items', {
+        method: 'POST',
+        body: JSON.stringify({
+          category_id: selectedCategory.id,
+          name: newTitle.trim(),
+          description: newDesc.trim(),
+          price: Number(newPrice),
+          is_vegetarian: newIsVeg,
+          is_available: true,
+          image_url: newImage || undefined,
+        }),
+      });
+      await loadMenuItems();
+      setIsAddModalOpen(false);
+      setNewTitle('');
+      setNewDesc('');
+      showToast(`Added "${newTitle.trim()}" to the menu.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to add the menu item.');
+    }
   };
 
   // Save Edit
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
-
-    setMenuItems((prev) =>
-      prev.map((i) => (i.id === editingItem.id ? editingItem : i))
-    );
-    setEditingItem(null);
-    showToast(`Updated "${editingItem.title}"`);
+    const selectedCategory = categories.find((category) => category.name === editingItem.category);
+    try {
+      await apiRequest(`/menu/items/${editingItem.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          category_id: selectedCategory?.id,
+          name: editingItem.title,
+          description: editingItem.description,
+          price: editingItem.price,
+          is_vegetarian: editingItem.isVeg,
+          is_available: editingItem.isAvailable,
+        }),
+      });
+      await loadMenuItems();
+      setEditingItem(null);
+      showToast(`Updated "${editingItem.title}".`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update the menu item.');
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center text-xs text-[#7A6F63]">
+        Loading menu items…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#201A15] flex flex-col font-sans selection:bg-[#EAE2D8] selection:text-[#201A15]">
@@ -465,16 +430,6 @@ function AdminMenuItemsContent() {
             </nav>
 
             <div className="flex items-center gap-4">
-              {/* Variable vs Live switcher */}
-              <button
-                type="button"
-                onClick={() => setIsLiteralMockup((v) => !v)}
-                className="text-[9px] font-bold px-2.5 py-1 rounded-md bg-[#F2EDE7] text-[#7A6F63] hover:text-[#201A15] border border-[#E5DFD5] transition cursor-pointer"
-                title="Toggle between Template Mockup and Live View"
-              >
-                {isLiteralMockup ? '{var}' : 'live'}
-              </button>
-
               <Link
                 href="/admin/login"
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
@@ -492,12 +447,12 @@ function AdminMenuItemsContent() {
                 href="/admin/menu"
                 className="font-semibold text-[#7A6F63] hover:text-[#201A15] transition pb-1"
               >
-                Categories (7)
+                Categories ({categories.length})
               </Link>
 
               <div className="flex items-center gap-2 border-b-2 border-[#705535] pb-1">
                 <span className="w-2 h-2 rounded-full bg-[#705535]" />
-                <span className="font-bold text-[#201A15]">Menu Items (42)</span>
+                <span className="font-bold text-[#201A15]">Menu Items ({menuItems.length})</span>
               </div>
             </div>
 
@@ -527,17 +482,17 @@ function AdminMenuItemsContent() {
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#EAE3D9] text-xs font-semibold text-[#554C42] shadow-2xs">
                   <UtensilsCrossed className="w-3.5 h-3.5 text-[#705535]" />
-                  <span>42 Total Dishes</span>
+                  <span>{totalDishesCount} Total Dishes</span>
                 </div>
 
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#EAE3D9] text-xs font-semibold text-[#554C42] shadow-2xs">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                  <span>39 Available</span>
+                  <span>{availableCount} Available</span>
                 </div>
 
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FDF0EE] text-[#C2410C] border border-[#F5D5CE] text-xs font-bold shadow-2xs">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#C2410C]" />
-                  <span>3 86'd / Unavailable</span>
+                  <span>{unavailableCount} 86'd / Unavailable</span>
                 </div>
 
                 <div className="flex items-center gap-1 text-xs text-[#8A8074] pl-2">
@@ -653,7 +608,7 @@ function AdminMenuItemsContent() {
                       selectedStatus === 'Available' ? 'bg-[#F2EDE7] text-[#201A15]' : 'text-[#7A6F63] hover:text-[#201A15]'
                     }`}
                   >
-                    Available (39)
+                    Available ({availableCount})
                   </button>
                   <button
                     type="button"
@@ -662,7 +617,7 @@ function AdminMenuItemsContent() {
                       selectedStatus === '86d' ? 'bg-[#F2EDE7] text-[#C2410C]' : 'text-[#7A6F63] hover:text-[#C2410C]'
                     }`}
                   >
-                    86'd (3)
+                    86'd ({unavailableCount})
                   </button>
                 </div>
               </div>
@@ -783,9 +738,7 @@ function AdminMenuItemsContent() {
                                 </p>
                               ) : (
                                 <p className="text-[11px] text-[#8A8074]">
-                                  <span>{item.sku}</span>
-                                  <span> • </span>
-                                  <span>{item.tag}</span>
+                                  <span>ID: {item.sku}</span>
                                 </p>
                               )}
 

@@ -12,12 +12,14 @@ import {
   CheckCircle2,
   ArrowRight,
 } from 'lucide-react';
+import { useNivora } from '@/context/NivoraContext';
 
 function AdminLoginContent() {
   const router = useRouter();
+  const { login } = useNivora();
 
-  const [email, setEmail] = useState('concierge.admin@nivora.resorts');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -27,13 +29,17 @@ function AdminLoginContent() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    showToast('Credentials authenticated. Connecting to Nivora Admin...');
-    setTimeout(() => {
+    try {
+      await login(email, password);
+      showToast('Signed in. Connecting to Nivora Admin...');
       router.push('/admin');
-    }, 600);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to sign in.');
+      setIsLoading(false);
+    }
   };
 
   return (

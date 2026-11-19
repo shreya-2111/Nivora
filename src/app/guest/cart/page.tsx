@@ -78,6 +78,8 @@ function CartPageContent() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isOrderPlaced, setIsOrderPlaced] = useState(false);
   const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Template toggle mode so reviewer can see literal mockup {variables} or live rich dish calculation
   const [isLiteralMockup, setIsLiteralMockup] = useState(false);
@@ -113,16 +115,19 @@ function CartPageContent() {
   );
 
   // State for demo items if cartItems is empty
-  const [demoList, setDemoList] = useState(defaultDemoItems);
+  const [demoList, setDemoList] = useState<typeof defaultDemoItems>([]);
 
   // Calculate live numbers
   const hasLiveItems = cartItems.length > 0;
 
-  const subtotalInr = hasLiveItems
-    ? Math.round(cartItems.reduce((acc, curr) => acc + curr.item.price * curr.quantity * 85, 0))
-    : demoList.reduce((acc, curr) => acc + curr.price * curr.quantity, 0);
+  const subtotalInr = Math.round(cartItems.reduce((total, current) => {
+    const optionsTotal = current.item.options
+      ?.filter((option) => current.optionIds?.includes(option.id))
+      .reduce((sum, option) => sum + option.price, 0) || 0;
+    return total + (current.item.price + optionsTotal) * current.quantity * 85;
+  }, 0));
 
-  const optionsTotalInr = hasLiveItems ? 250 : 250;
+  const optionsTotalInr = 0;
   const orderTotalInr = subtotalInr + optionsTotalInr;
 
   const handleClear = () => {
@@ -152,19 +157,24 @@ function CartPageContent() {
     setDemoList((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handlePlaceOrder = () => {
-    let orderNum = '#NV-2895';
-    if (hasLiveItems) {
-      const created = placeOrder('Special instructions from Cart screen');
-      orderNum = created.orderNumber;
-      setConfirmedOrderNumber(created.orderNumber);
-    } else {
-      setConfirmedOrderNumber('#NV-2895');
+  const handlePlaceOrder = async () => {
+    if (!hasLiveItems) {
+      setSubmissionError('Add at least one menu item before placing your order.');
+      return;
     }
-    showToast('Order confirmed! Sending to hotel kitchen...');
-    setTimeout(() => {
-      router.push(`/guest/confirmation?id=${encodeURIComponent(orderNum)}&room=${encodeURIComponent(guest?.roomNumber || '104')}`);
-    }, 400);
+    setSubmissionError(null);
+    setIsSubmitting(true);
+    try {
+      const created = await placeOrder('Special instructions from Cart screen');
+      setConfirmedOrderNumber(created.orderNumber);
+      setIsOrderPlaced(true);
+      showToast('Order confirmed! Sending to hotel kitchen...');
+      router.push(`/guest/confirmation?id=${encodeURIComponent(created.id)}&room=${encodeURIComponent(guest.roomNumber)}`);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Unable to place your order.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -248,8 +258,11 @@ function CartPageContent() {
         {/* Cart Items List */}
         <section className="space-y-3.5">
           {hasLiveItems
-            ? cartItems.map(({ item, quantity, instructions }) => {
-                const itemPriceInr = Math.round(item.price * 85);
+            ? cartItems.map(({ item, quantity, instructions, optionIds }) => {
+                const optionsTotal = item.options
+                  ?.filter((option) => optionIds?.includes(option.id))
+                  .reduce((sum, option) => sum + option.price, 0) || 0;
+                const itemPriceInr = Math.round((item.price + optionsTotal) * 85);
                 const itemTotalInr = itemPriceInr * quantity;
 
                 return (
@@ -513,12 +526,18 @@ function CartPageContent() {
           <button
             type="button"
             onClick={handlePlaceOrder}
-            className="flex items-center gap-2 bg-[#705535] hover:bg-[#5C452A] text-white font-bold text-xs sm:text-sm px-6 sm:px-8 py-3.5 rounded-2xl shadow-md transition active:scale-98 cursor-pointer"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 bg-[#705535] hover:bg-[#5C452A] text-white font-bold text-xs sm:text-sm px-6 sm:px-8 py-3.5 rounded-2xl shadow-md transition active:scale-98 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
           >
-            <span>Place Order</span>
+            <span>{isSubmitting ? 'Sending...' : 'Place Order'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
+        {submissionError && (
+          <p role="alert" className="mx-auto mt-2 max-w-2xl text-center text-xs text-rose-700">
+            {submissionError}
+          </p>
+        )}
       </div>
 
       {/* Fixed Bottom Navigation Bar */}

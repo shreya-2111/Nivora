@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import {
   LogOut,
   LayoutDashboard,
@@ -32,6 +31,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { apiRequest } from '@/lib/api';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -82,6 +82,9 @@ export interface RoomTokenRecord {
   floor: string;
   tokenCode: string;
   qrHash: string;
+  roomId: string;
+  qrUrl: string;
+  qrImage?: string;
   scansCount: number;
   lastScanned: string;
   status: 'ACTIVE' | 'INACTIVE';
@@ -89,18 +92,16 @@ export interface RoomTokenRecord {
 }
 
 function AdminQRContent() {
-  const searchParams = useSearchParams();
-  const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
-
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All Status (28)');
+  const [statusFilter, setStatusFilter] = useState('All Status');
   const [floorFilter, setFloorFilter] = useState('All Floors');
   const [activeTab, setActiveTab] = useState<'preview' | 'registry'>('preview');
 
   // Selected room for physical staging preview
-  const [selectedRoomId, setSelectedRoomId] = useState<string>('rm_404');
+  const [selectedRoomId, setSelectedRoomId] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [rooms, setRooms] = useState<Array<{ id: string; room_number: string; floor: string | null; status: 'ACTIVE' | 'INACTIVE' }>>([]);
 
   // Modals state
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -109,131 +110,66 @@ function AdminQRContent() {
   const [copiedToken, setCopiedToken] = useState(false);
 
   // New QR Code Form State
-  const [newRoomNumber, setNewRoomNumber] = useState('');
-  const [newWing, setNewWing] = useState('West Pavilion');
-  const [newFloor, setNewFloor] = useState('Floor 4');
-  const [newStatus, setNewStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
+  const [newRoomId, setNewRoomId] = useState('');
 
-  const showToast = (msg: string) => {
+  const showToast = React.useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 3200);
-  };
+  }, []);
 
-  // 28 Room Token Records
-  const [tokens, setTokens] = useState<RoomTokenRecord[]>([
-    {
-      id: 'rm_404',
-      roomNumberTemplate: 'ROOM',
-      roomNumberLive: 'Room 404',
-      suiteNameTemplate: 'Villa Del Mar • West Pavilion',
-      suiteNameLive: 'Villa Del Mar • West Pavilion',
-      wing: 'West Pavilion',
-      floor: 'Floor 4',
-      tokenCode: 'NV-QR-V404-X992',
-      qrHash: 'sha256-a78b4f129c...8f2b',
-      scansCount: 148,
-      lastScanned: '12m ago',
-      status: 'ACTIVE',
-      plaqueSize: '105 × 148 mm (A6)',
-    },
-    {
-      id: 'rm_215',
-      roomNumberTemplate: '{ ROOM :Number }',
-      roomNumberLive: 'Room 215',
-      suiteNameTemplate: 'Ocean Front Suite • East Wing',
-      suiteNameLive: 'Ocean Front Suite • East Wing',
-      wing: 'Ocean Front',
-      floor: 'Floor 2',
-      tokenCode: 'NV-QR-R215-B811',
-      qrHash: 'sha256-99c3d4e8...714a',
-      scansCount: 82,
-      lastScanned: '1h ago',
-      status: 'ACTIVE',
-      plaqueSize: '105 × 148 mm (A6)',
-    },
-    {
-      id: 'rm_512',
-      roomNumberTemplate: '{ ROOM :Number }',
-      roomNumberLive: 'Room 512',
-      suiteNameTemplate: 'Presidential Penthouse • North Tower',
-      suiteNameLive: 'Presidential Penthouse • North Tower',
-      wing: 'Presidential',
-      floor: 'Floor 5',
-      tokenCode: 'NV-QR-P512-Z700',
-      qrHash: 'sha256-f84102d9...33ee',
-      scansCount: 91,
-      lastScanned: '3h ago',
-      status: 'ACTIVE',
-      plaqueSize: '105 × 148 mm (A6)',
-    },
-    {
-      id: 'rm_cab04',
-      roomNumberTemplate: '{ ROOM :Number }',
-      roomNumberLive: 'Cabana 04',
-      suiteNameTemplate: 'Private Azure Pool Cabana',
-      suiteNameLive: 'Private Azure Pool Cabana',
-      wing: 'Palm Wing',
-      floor: 'Floor 1',
-      tokenCode: 'NV-QR-C004-K519',
-      qrHash: 'sha256-3b9e11fc...4210',
-      scansCount: 114,
-      lastScanned: '8m ago',
-      status: 'ACTIVE',
-      plaqueSize: '105 × 148 mm (A6)',
-    },
-    {
-      id: 'rm_108',
-      roomNumberTemplate: '{ ROOM :Number }',
-      roomNumberLive: 'Room 108',
-      suiteNameTemplate: 'Garden Veranda Suite',
-      suiteNameLive: 'Garden Veranda Suite',
-      wing: 'Garden & Cabanas',
-      floor: 'Floor 1',
-      tokenCode: 'NV-QR-G108-H223',
-      qrHash: 'sha256-55aa9142...bc01',
-      scansCount: 29,
-      lastScanned: '4h ago',
-      status: 'ACTIVE',
-      plaqueSize: '105 × 148 mm (A6)',
-    },
-    {
-      id: 'rm_310',
-      roomNumberTemplate: '{ ROOM :Number }',
-      roomNumberLive: 'Room 310',
-      suiteNameTemplate: 'Palm Terrace Suite',
-      suiteNameLive: 'Palm Terrace Suite',
-      wing: 'Palm Wing',
-      floor: 'Floor 3',
-      tokenCode: 'NV-QR-P310-L404',
-      qrHash: 'sha256-78d26ea3...9a18',
-      scansCount: 87,
-      lastScanned: '1d ago',
-      status: 'ACTIVE',
-      plaqueSize: '105 × 148 mm (A6)',
-    },
-    {
-      id: 'rm_204',
-      roomNumberTemplate: '{ ROOM :Number }',
-      roomNumberLive: 'Room 204',
-      suiteNameTemplate: 'Veranda Room • South Wing',
-      suiteNameLive: 'Veranda Room • South Wing',
-      wing: 'Veranda ROOMs',
-      floor: 'Floor 2',
-      tokenCode: 'NV-QR-V204-REVOKED',
-      qrHash: 'REVOKED / Deep Clean',
-      scansCount: 0,
-      lastScanned: 'Offline',
-      status: 'INACTIVE',
-      plaqueSize: '105 × 148 mm (A6)',
-    },
-  ]);
+  const [tokens, setTokens] = useState<RoomTokenRecord[]>([]);
+  const loadTokens = React.useCallback(async () => {
+    try {
+      const [roomResponse, qrResponse] = await Promise.all([
+        apiRequest<{ rooms: Array<{ id: string; room_number: string; floor: string | null; status: 'ACTIVE' | 'INACTIVE' }> }>('/rooms'),
+        apiRequest<{ qr_codes: Array<{ id: string; room_id: string; room_number: string; token: string; url: string; is_active: boolean; qr_image?: string }> }>('/qr?include_image=true'),
+      ]);
+      setRooms(roomResponse.rooms);
+      setNewRoomId((current) => current || roomResponse.rooms[0]?.id || '');
+      setTokens(qrResponse.qr_codes.map((qr) => {
+        const room = roomResponse.rooms.find((entry) => entry.id === qr.room_id);
+        const roomNumber = room?.room_number || qr.room_number;
+        const floor = room?.floor || 'Unassigned';
+        return {
+          id: qr.id,
+          roomId: qr.room_id,
+          roomNumberTemplate: roomNumber,
+          roomNumberLive: `Room ${roomNumber}`,
+          suiteNameTemplate: roomNumber,
+          suiteNameLive: roomNumber,
+          wing: floor,
+          floor,
+          tokenCode: qr.token,
+          qrHash: `${qr.token.slice(0, 8)}…${qr.token.slice(-4)}`,
+          qrUrl: qr.url,
+          qrImage: qr.qr_image,
+          scansCount: 0,
+          lastScanned: 'Not available',
+          status: qr.is_active ? 'ACTIVE' : 'INACTIVE',
+          plaqueSize: '105 × 148 mm (A6)',
+        };
+      }));
+      setSelectedRoomId((current) => current && qrResponse.qr_codes.some((qr) => qr.id === current)
+        ? current
+        : qrResponse.qr_codes[0]?.id || '');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to load QR codes.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    void loadTokens();
+  }, [loadTokens]);
 
   // Selected room object
   const currentSelectedRoom = useMemo(() => {
     return tokens.find((t) => t.id === selectedRoomId) || tokens[0];
   }, [tokens, selectedRoomId]);
+  const activeRooms = useMemo(() => rooms.filter((room) => room.status === 'ACTIVE'), [rooms]);
 
   // Filtered tokens
   const filteredTokens = useMemo(() => {
@@ -266,10 +202,9 @@ function AdminQRContent() {
 
   // Handle Download High-Res PDF (300 DPI)
   const handleDownloadPDF = () => {
+    if (!currentSelectedRoom) return;
     showToast(
-      `Preparing 300 DPI press-ready PDF for ${
-        isLiteralMockup ? 'ROOM' : currentSelectedRoom.roomNumberLive
-      } Plaque...`
+      `Preparing a printable QR plaque for ${currentSelectedRoom.roomNumberLive}...`
     );
     setTimeout(() => {
       window.print();
@@ -280,49 +215,87 @@ function AdminQRContent() {
   const handleBatchExport = (e: React.FormEvent) => {
     e.preventDefault();
     setIsBatchExportModalOpen(false);
-    showToast('Batch PDF compilation initiated: 28 vector plaques exported (300 DPI CMYK).');
+    showToast('Use your browser print dialog to print the loaded QR plaques.');
   };
 
   // Handle Generate QR Code
-  const handleGenerateQR = (e: React.FormEvent) => {
+  const handleGenerateQR = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoomNumber.trim()) return;
-
-    const num = newRoomNumber.trim();
-    const newToken: RoomTokenRecord = {
-      id: `rm_${Date.now()}`,
-      roomNumberTemplate: '{ ROOM :Number }',
-      roomNumberLive: `Room ${num}`,
-      suiteNameTemplate: `${newWing} Suite`,
-      suiteNameLive: `${newWing} Suite`,
-      wing: newWing,
-      floor: newFloor,
-      tokenCode: `NV-QR-R${num}-GEN`,
-      qrHash: `sha256-${Math.random().toString(36).substring(2, 10)}...${Math.random()
-        .toString(36)
-        .substring(2, 6)}`,
-      scansCount: 0,
-      lastScanned: 'Just generated',
-      status: newStatus,
-      plaqueSize: '105 × 148 mm (A6)',
-    };
-
-    setTokens((prev) => [newToken, ...prev]);
-    setSelectedRoomId(newToken.id);
-    setIsGenerateModalOpen(false);
-    setNewRoomNumber('');
-    showToast(`Provisioned new QR Plaque for Room ${num} with AES-256 room token.`);
+    if (!newRoomId) return;
+    try {
+      const { qr_code: created } = await apiRequest<{ qr_code: { id: string } }>('/qr', {
+        method: 'POST',
+        body: JSON.stringify({ room_id: newRoomId }),
+      });
+      await loadTokens();
+      setSelectedRoomId(created.id);
+      setIsGenerateModalOpen(false);
+      setNewRoomId('');
+      showToast('QR code generated for the selected room.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to generate QR code.');
+    }
   };
 
   const copyGuestDirectUrl = () => {
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/guest?room=${
-      isLiteralMockup ? '404' : currentSelectedRoom.roomNumberLive.replace('Room ', '')
-    }`;
-    navigator.clipboard?.writeText(url);
+    if (!currentSelectedRoom?.qrUrl) {
+      showToast('Select an active QR code before copying a guest link.');
+      return;
+    }
+    void navigator.clipboard.writeText(currentSelectedRoom.qrUrl);
     setCopiedToken(true);
-    showToast('Direct guest auto-authentication URL copied to clipboard.');
+    showToast('Guest QR link copied to clipboard.');
     setTimeout(() => setCopiedToken(false), 2000);
   };
+
+  const handleToggleToken = async (token: RoomTokenRecord) => {
+    try {
+      await apiRequest(`/qr/${token.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: token.status !== 'ACTIVE' }),
+      });
+      await loadTokens();
+      showToast(`QR status updated for ${token.roomNumberLive}.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update the QR status.');
+    }
+  };
+
+  if (!currentSelectedRoom) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6 text-center">
+        <div className="space-y-3">
+          {toastMessage && <p role="alert" className="text-xs text-red-700">{toastMessage}</p>}
+          <p className="font-serif text-[#201A15] font-bold">
+            {isLoading ? 'Loading QR codes…' : 'No QR codes are configured yet.'}
+          </p>
+          {!isLoading && (
+            activeRooms.length > 0 ? (
+              <form onSubmit={handleGenerateQR} className="flex flex-col sm:flex-row gap-2 justify-center">
+                <select
+                  aria-label="Select room for a QR code"
+                  value={newRoomId}
+                  onChange={(event) => setNewRoomId(event.target.value)}
+                  className="rounded-xl border border-[#DDD5C9] bg-white px-3 py-2 text-xs"
+                >
+                  {activeRooms.map((room) => (
+                    <option key={room.id} value={room.id}>Room {room.room_number}</option>
+                  ))}
+                </select>
+                <button type="submit" className="px-4 py-2 rounded-xl bg-[#705535] text-white text-xs font-bold">
+                  Generate a QR code
+                </button>
+              </form>
+            ) : (
+              <Link href="/admin/rooms" className="text-xs font-bold text-[#705535] underline">
+                Create a room first
+              </Link>
+            )
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#201A15] flex flex-col font-sans selection:bg-[#E8DCCB] selection:text-[#3B2B1B]">
@@ -454,15 +427,6 @@ function AdminQRContent() {
               <ChevronRight className="w-3.5 h-3.5 text-[#B8AEA2]" />
               <span className="font-semibold text-[#201A15]">Room Tokens</span>
 
-              {/* Mode Toggle ({var} vs Live) */}
-              <button
-                type="button"
-                onClick={() => setIsLiteralMockup(!isLiteralMockup)}
-                className="ml-3 px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-[#EFE9DF] text-[#705535] hover:bg-[#E5DDCF] border border-[#DDD5C9] transition"
-                title="Toggle template placeholder representation vs live guest preview"
-              >
-                {isLiteralMockup ? '{var} Mode' : 'Live Mode'}
-              </button>
             </div>
 
             <div className="flex items-center gap-4">
@@ -510,6 +474,8 @@ function AdminQRContent() {
               <button
                 type="button"
                 onClick={() => setIsGenerateModalOpen(true)}
+                disabled={activeRooms.length === 0}
+                title={activeRooms.length === 0 ? 'Create or activate a room first' : undefined}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#705535] hover:bg-[#5C452A] text-white text-xs font-bold shadow-xs transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -531,7 +497,7 @@ function AdminQRContent() {
                 </div>
               </div>
               <div className="mt-2">
-                <p className="text-2xl font-serif font-bold text-[#201A15]">28 Assigned</p>
+                <p className="text-2xl font-serif font-bold text-[#201A15]">{tokens.length} Assigned</p>
                 <p className="text-[11px] text-[#7A6F63] mt-0.5">Physical plaques deployed</p>
               </div>
             </div>
@@ -549,7 +515,7 @@ function AdminQRContent() {
               <div className="mt-2">
                 <p className="text-2xl font-serif font-bold text-[#201A15] flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" />
-                  <span>26 Active</span>
+                  <span>{tokens.filter((token) => token.status === 'ACTIVE').length} Active</span>
                 </p>
                 <p className="text-[11px] text-[#7A6F63] mt-0.5">Instant session resolver</p>
               </div>
@@ -568,7 +534,7 @@ function AdminQRContent() {
               <div className="mt-2">
                 <p className="text-2xl font-serif font-bold text-[#201A15] flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#8A8074] inline-block" />
-                  <span>2 Inactive</span>
+                  <span>{tokens.filter((token) => token.status === 'INACTIVE').length} Inactive</span>
                 </p>
                 <p className="text-[11px] text-[#7A6F63] mt-0.5">Deep clean &amp; renovations</p>
               </div>
@@ -578,15 +544,15 @@ function AdminQRContent() {
             <div className="bg-white rounded-2xl p-4 border border-[#E8E2D8] shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#8A8074]">
-                  TOKEN ENCRYPTION
+                  TOKEN SECURITY
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-[#F8F5F0] border border-[#E8E2D8] flex items-center justify-center text-[#705535]">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
               <div className="mt-2">
-                <p className="text-xl font-serif font-bold text-[#201A15]">AES-256 Room Hash</p>
-                <p className="text-[11px] text-[#7A6F63] mt-0.5">Non-sequential &amp; Room-bound</p>
+                <p className="text-xl font-serif font-bold text-[#201A15]">Random token</p>
+                <p className="text-[11px] text-[#7A6F63] mt-0.5">Generated by backend</p>
               </div>
             </div>
           </div>
@@ -624,9 +590,9 @@ function AdminQRContent() {
                   aria-label="Filter by room status"
                   className="bg-[#FDFBF7] border border-[#DDD5C9] text-xs text-[#4A3E31] rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-1 focus:ring-[#705535] cursor-pointer"
                 >
-                  <option value="All Status (28)">All Status (28)</option>
-                  <option value="Active (26)">Active (26)</option>
-                  <option value="Inactive (2)">Inactive (2)</option>
+                  <option value="All Status">All Status</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
 
                 {/* Floor Dropdown */}
@@ -647,7 +613,7 @@ function AdminQRContent() {
                 {/* Counter matching screenshot */}
                 <span className="text-xs font-semibold text-[#8C8275] flex items-center gap-1.5 shrink-0 pl-1">
                   <span className="w-2 h-2 rounded-full bg-[#85653C] inline-block" />
-                  Showing {filteredTokens.length} of 28 records
+                  Showing {filteredTokens.length} of {tokens.length} records
                 </span>
               </div>
             </div>
@@ -670,7 +636,7 @@ function AdminQRContent() {
                         : 'bg-[#F5EFEB] text-[#5A4F44] hover:bg-[#EAE2D7]'
                     }`}
                   >
-                    <span>{isLiteralMockup && t.id === 'rm_404' ? 'ROOM' : t.roomNumberLive}</span>
+                    <span>{t.roomNumberLive}</span>
                     <span
                       className={`text-[9px] px-1 py-0.2 rounded font-mono ${
                         isSelected ? 'bg-[#5C452A] text-white' : 'text-[#8A8074]'
@@ -693,11 +659,7 @@ function AdminQRContent() {
                   PHYSICAL STAGING PREVIEW
                 </p>
                 <h3 className="font-serif text-2xl font-bold text-[#201A15] mt-0.5">
-                  {isLiteralMockup
-                    ? currentSelectedRoom.id === 'rm_404'
-                      ? 'ROOM Plaque'
-                      : `${currentSelectedRoom.roomNumberTemplate} Plaque`
-                    : `${currentSelectedRoom.roomNumberLive} Plaque`}
+                  {currentSelectedRoom.roomNumberLive} Plaque
                 </h3>
               </div>
 
@@ -769,12 +731,19 @@ function AdminQRContent() {
 
                   {/* Subtitle / Pavilion Wing */}
                   <p className="text-[11px] text-[#7A6E60] font-medium tracking-wide mt-1">
-                    {isLiteralMockup ? 'Villa Del Mar • West Pavilion' : currentSelectedRoom.suiteNameLive}
+                    {currentSelectedRoom.suiteNameLive}
                   </p>
 
                   {/* High Quality Crisp Scannable 2D QR Code SVG */}
                   <div className="my-5 flex items-center justify-center">
                     <div className="bg-white p-3.5 rounded-xl border border-[#E8DFC8] shadow-sm relative inline-block">
+                      {currentSelectedRoom.qrImage ? (
+                        <img
+                          src={currentSelectedRoom.qrImage}
+                          alt={`Guest QR code for ${currentSelectedRoom.roomNumberLive}`}
+                          className="w-48 h-48 sm:w-52 sm:h-52"
+                        />
+                      ) : (
                       <svg
                         className="w-48 h-48 sm:w-52 sm:h-52"
                         viewBox="0 0 200 200"
@@ -904,6 +873,7 @@ function AdminQRContent() {
                           N
                         </text>
                       </svg>
+                      )}
                     </div>
                   </div>
 
@@ -921,11 +891,7 @@ function AdminQRContent() {
                   <div className="mt-5 pt-3.5 border-t border-[#EAE1D3] flex items-center justify-between text-[9px] font-bold tracking-wider text-[#8C8072] uppercase px-1">
                     <div className="text-left">
                       <p className="text-[#3B2F23] font-bold">
-                        {isLiteralMockup
-                          ? currentSelectedRoom.id === 'rm_404'
-                            ? 'ROOM'
-                            : currentSelectedRoom.roomNumberTemplate
-                          : currentSelectedRoom.roomNumberLive}
+                        {currentSelectedRoom.roomNumberLive}
                       </p>
                       <p className="text-[8px] text-[#A39686]">AUTHENTICATED</p>
                     </div>
@@ -982,11 +948,7 @@ function AdminQRContent() {
                 </button>
 
                 <Link
-                  href={`/guest?room=${
-                    isLiteralMockup
-                      ? '404'
-                      : currentSelectedRoom.roomNumberLive.replace('Room ', '')
-                  }`}
+                  href={currentSelectedRoom.qrUrl}
                   target="_blank"
                   className="px-3 py-1.5 rounded-lg bg-[#705535] hover:bg-[#5C452A] text-xs font-semibold text-white flex items-center gap-1.5 transition shadow-2xs"
                 >
@@ -1022,14 +984,10 @@ function AdminQRContent() {
                       >
                         <td className="py-3 px-3">
                           <div className="font-bold text-[#201A15]">
-                            {isLiteralMockup && t.id === 'rm_404'
-                              ? 'ROOM'
-                              : isLiteralMockup
-                              ? t.roomNumberTemplate
-                              : t.roomNumberLive}
+                            {t.roomNumberLive}
                           </div>
                           <div className="text-[10px] text-[#7A6F63]">
-                            {isLiteralMockup ? t.suiteNameTemplate : t.suiteNameLive}
+                            {t.suiteNameLive}
                           </div>
                         </td>
 
@@ -1083,23 +1041,7 @@ function AdminQRContent() {
 
                             <button
                               type="button"
-                              onClick={() => {
-                                setTokens((prev) =>
-                                  prev.map((item) =>
-                                    item.id === t.id
-                                      ? {
-                                          ...item,
-                                          status: item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE',
-                                        }
-                                      : item
-                                  )
-                                );
-                                showToast(
-                                  `Token ${t.tokenCode} status updated to ${
-                                    t.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-                                  }.`
-                                );
-                              }}
+                              onClick={() => void handleToggleToken(t)}
                               className="p-1 rounded-md text-[#8C8275] hover:text-[#201A15] hover:bg-[#EAE2D7] transition"
                               title="Toggle Active/Inactive"
                             >
@@ -1138,7 +1080,7 @@ function AdminQRContent() {
                   Generate Physical QR Plaque Token
                 </h3>
                 <p className="text-xs text-[#7A6F63]">
-                  Assign an immutable AES-256 encrypted token for in-room brass plaques.
+                  Create or rotate the secure guest QR token assigned to a room.
                 </p>
               </div>
             </div>
@@ -1148,85 +1090,28 @@ function AdminQRContent() {
                 <label className="block text-xs font-bold text-[#4A3E31] mb-1">
                   Room / Suite Number <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   required
-                  placeholder="e.g. 405, 312, Villa 02"
-                  value={newRoomNumber}
-                  onChange={(e) => setNewRoomNumber(e.target.value)}
+                  value={newRoomId}
+                  onChange={(e) => setNewRoomId(e.target.value)}
                   className="w-full bg-white border border-[#DDD5C9] rounded-xl px-3 py-2 text-xs text-[#201A15] focus:outline-none focus:ring-1 focus:ring-[#705535]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#4A3E31] mb-1">
-                    Pavilion Wing
-                  </label>
-                  <select
-                    value={newWing}
-                    onChange={(e) => setNewWing(e.target.value)}
-                    className="w-full bg-white border border-[#DDD5C9] rounded-xl px-3 py-2 text-xs text-[#201A15] focus:outline-none focus:ring-1 focus:ring-[#705535]"
-                  >
-                    <option value="West Pavilion">West Pavilion</option>
-                    <option value="Ocean Front">Ocean Front</option>
-                    <option value="Palm Wing">Palm Wing</option>
-                    <option value="Garden & Cabanas">Garden &amp; Cabanas</option>
-                    <option value="Presidential">Presidential Tower</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#4A3E31] mb-1">Floor</label>
-                  <select
-                    value={newFloor}
-                    onChange={(e) => setNewFloor(e.target.value)}
-                    className="w-full bg-white border border-[#DDD5C9] rounded-xl px-3 py-2 text-xs text-[#201A15] focus:outline-none focus:ring-1 focus:ring-[#705535]"
-                  >
-                    <option value="Floor 1">Floor 1</option>
-                    <option value="Floor 2">Floor 2</option>
-                    <option value="Floor 3">Floor 3</option>
-                    <option value="Floor 4">Floor 4</option>
-                    <option value="Floor 5">Floor 5</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#4A3E31] mb-1">Initial Status</label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 text-xs text-[#4A3E31] cursor-pointer">
-                    <input
-                      type="radio"
-                      name="status"
-                      checked={newStatus === 'ACTIVE'}
-                      onChange={() => setNewStatus('ACTIVE')}
-                      className="accent-[#705535]"
-                    />
-                    <span>Active (Deployed in room)</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-[#4A3E31] cursor-pointer">
-                    <input
-                      type="radio"
-                      name="status"
-                      checked={newStatus === 'INACTIVE'}
-                      onChange={() => setNewStatus('INACTIVE')}
-                      className="accent-[#705535]"
-                    />
-                    <span>Inactive (Under preparation)</span>
-                  </label>
-                </div>
+                >
+                  <option value="">Select a room</option>
+                  <option value="">Select an active room</option>
+                  {activeRooms.map((room) => (
+                    <option key={room.id} value={room.id}>Room {room.room_number}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="bg-[#F2EDE7] p-3 rounded-xl border border-[#E8E2D8] text-[11px] text-[#5A4F44] space-y-1">
                 <p className="font-bold flex items-center gap-1.5 text-[#705535]">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Security &amp; Hardware Encryption</span>
+                  <span>Secure Guest Access</span>
                 </p>
                 <p>
-                  Tokens generate with a 256-bit cryptographically secure hash. Scans resolve
-                  directly to the assigned guest room folio without requiring personal login
-                  passwords.
+                  The backend creates an unguessable token for this room. Guests who scan its QR
+                  code are sent to the matching guest session.
                 </p>
               </div>
 
@@ -1293,8 +1178,8 @@ function AdminQRContent() {
                   Target Selection
                 </label>
                 <select className="w-full bg-white border border-[#DDD5C9] rounded-xl px-3 py-2 text-xs text-[#201A15] focus:outline-none focus:ring-1 focus:ring-[#705535]">
-                  <option>All 28 Assigned Rooms (Complete Resort Fleet)</option>
-                  <option>Active Only (26 Rooms)</option>
+                  <option>All {tokens.length} Assigned Rooms</option>
+                  <option>Active Only ({tokens.filter((token) => token.status === 'ACTIVE').length} Rooms)</option>
                   <option>West Pavilion &amp; Ocean Front (14 Rooms)</option>
                   <option>Current Selected Room Only ({currentSelectedRoom.roomNumberLive})</option>
                 </select>
@@ -1324,7 +1209,7 @@ function AdminQRContent() {
                 <div>
                   <span className="font-bold block">Estimated Output</span>
                   <span className="text-[10px] text-[#8C8275]">
-                    7 sheets @ 4 cards per sheet (A4 Press Layout)
+                    {tokens.length} assigned QR plaques
                   </span>
                 </div>
                 <span className="px-2.5 py-1 rounded bg-[#705535] text-white font-bold text-[10px]">
@@ -1398,7 +1283,7 @@ function AdminQRContent() {
 
               <div className="pt-2 flex flex-col gap-2">
                 <Link
-                  href={`/guest?room=${currentSelectedRoom.roomNumberLive.replace('Room ', '')}`}
+                  href={currentSelectedRoom.qrUrl}
                   className="w-full bg-[#705535] hover:bg-[#5C452A] text-white py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs"
                 >
                   <ExternalLink className="w-4 h-4" />

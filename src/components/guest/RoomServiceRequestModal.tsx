@@ -124,6 +124,8 @@ function RoomServiceRequestContent({
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentPresets = CATEGORY_PRESETS[category] || CATEGORY_PRESETS['Housekeeping & Linen'];
 
@@ -143,21 +145,28 @@ function RoomServiceRequestContent({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     const finalItem = customItem.trim() || selectedPreset;
-    const newReq = addRoomRequest({
-      roomNumber: guest.roomNumber,
-      guestName: guest.name,
-      serviceCategory: category,
-      requestItem: finalItem,
-      urgency,
-      notes: notes.trim() || undefined,
-    });
-
-    setSubmittedTicket(newReq.ticketNumber);
+    setSubmissionError(null);
+    setIsSubmitting(true);
+    try {
+      const newReq = await addRoomRequest({
+        roomNumber: guest.roomNumber,
+        guestName: guest.name,
+        serviceCategory: category,
+        requestItem: finalItem,
+        urgency,
+        notes: notes.trim() || undefined,
+      });
+      setSubmittedTicket(newReq.ticketNumber);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Unable to submit your request.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleResetAndClose = () => {
@@ -210,7 +219,7 @@ function RoomServiceRequestContent({
 
             <div className="space-y-1">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                Demo Ticket Created
+                Request Submitted
               </span>
               <h3 className="text-xl font-bold text-white">{submittedTicket} Confirmed</h3>
               <p className="text-xs text-slate-300 max-w-sm">
@@ -233,10 +242,6 @@ function RoomServiceRequestContent({
                 <span className="text-slate-400">Expected Timing:</span>
                 <span className="text-emerald-400 font-medium">{urgency}</span>
               </div>
-            </div>
-
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] text-amber-300/80 text-center w-full">
-              Demo Simulation: This ticket is saved to local state and visible in the Admin Dashboard.
             </div>
 
             <button
@@ -390,14 +395,14 @@ function RoomServiceRequestContent({
             {/* Submit CTA */}
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 py-3 text-xs font-bold text-slate-950 shadow-md shadow-amber-500/20 hover:from-amber-300 hover:to-amber-500 transition active:scale-98"
+              disabled={isSubmitting}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 py-3 text-xs font-bold text-slate-950 shadow-md shadow-amber-500/20 hover:from-amber-300 hover:to-amber-500 transition active:scale-98 disabled:opacity-60 disabled:cursor-wait"
             >
-              <span>Submit Request to Concierge</span>
+              <span>{isSubmitting ? 'Submitting...' : 'Submit Request to Concierge'}</span>
             </button>
-
-            <p className="text-center text-[10px] text-slate-500">
-              Demo Mode • All requests are stored locally for interface testing.
-            </p>
+            {submissionError && (
+              <p role="alert" className="text-center text-xs text-rose-400">{submissionError}</p>
+            )}
           </form>
         )}
       </div>

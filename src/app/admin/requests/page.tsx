@@ -3,6 +3,7 @@
 import React, { useState, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { RequestStatus } from '@/types';
 import {
   LogOut,
   LayoutDashboard,
@@ -168,11 +169,11 @@ export interface RoomRequestItem {
 
 function AdminRoomRequestsContent() {
   const searchParams = useSearchParams();
-  const { guest } = useNivora();
+  const { guest, roomRequests, updateRoomRequestStatus } = useNivora();
 
   // Template toggle mode: {var} vs live
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedServiceFilter, setSelectedServiceFilter] = useState('All Services');
@@ -300,10 +301,50 @@ function AdminRoomRequestsContent() {
   );
 
   const [requestsList, setRequestsList] = useState<RoomRequestItem[]>(initialRequests);
+  const serviceCategoryOptions: RoomRequestItem['serviceCategory'][] = [
+    'Extra Towels',
+    'Housekeeping',
+    'Drinking Water',
+    'Toiletries',
+    'Maintenance',
+    'Laundry',
+    'Other Request',
+  ];
+  const apiRequestStatuses: Record<string, RequestStatusCategory> = {
+    NEW: 'NEW',
+    ACCEPTED: 'ACCEPTED',
+    IN_PROGRESS: 'IN PROGRESS',
+    COMPLETED: 'COMPLETED',
+    REJECTED: 'REJECTED',
+    CANCELLED: 'REJECTED',
+  };
+  const liveRequests: RoomRequestItem[] = roomRequests.map((request) => {
+    const categoryName = request.serviceCategory.toLowerCase();
+    const category = serviceCategoryOptions.find(
+      (name) => name.toLowerCase() === categoryName
+    ) || (categoryName.includes('housekeeping')
+      ? 'Housekeeping'
+      : categoryName.includes('laundry')
+        ? 'Laundry'
+        : 'Other Request');
+    return {
+      id: request.id,
+      roomTemplate: '',
+      roomLive: `ROOM ${request.roomNumber}`,
+      wing: '',
+      service: request.serviceCategory,
+      serviceCategory: category,
+      guestNote: request.requestItem,
+      status: apiRequestStatuses[request.backendStatus || 'NEW'],
+      timeLogged: request.createdAt,
+      timeAgo: '',
+    };
+  });
+  const displayedRequests = isLiteralMockup ? requestsList : liveRequests;
 
   // Filter requests
   const filteredRequests = useMemo(() => {
-    return requestsList.filter((req) => {
+    return displayedRequests.filter((req) => {
       // Status filter
       if (statusFilter !== 'ALL' && req.status !== statusFilter) {
         return false;
@@ -328,17 +369,37 @@ function AdminRoomRequestsContent() {
 
       return true;
     });
-  }, [requestsList, statusFilter, selectedServiceFilter, searchQuery]);
+  }, [displayedRequests, statusFilter, selectedServiceFilter, searchQuery]);
 
   // Handle Action changes for request modal
-  const handleUpdateStatus = (reqId: string, newStatus: RequestStatusCategory) => {
-    setRequestsList((prev) =>
-      prev.map((item) => (item.id === reqId ? { ...item, status: newStatus } : item))
-    );
-    if (selectedRequest && selectedRequest.id === reqId) {
-      setSelectedRequest((prev) => (prev ? { ...prev, status: newStatus } : null));
+  const handleUpdateStatus = async (reqId: string, newStatus: RequestStatusCategory) => {
+    if (isLiteralMockup) {
+      setRequestsList((previous) =>
+        previous.map((item) => item.id === reqId ? { ...item, status: newStatus } : item)
+      );
+      if (selectedRequest?.id === reqId) {
+        setSelectedRequest((previous) => previous ? { ...previous, status: newStatus } : null);
+      }
+      showToast(`Request status updated to ${newStatus}`);
+      return;
     }
-    showToast(`Request status updated to ${newStatus}`);
+
+    const statuses: Record<RequestStatusCategory, RequestStatus> = {
+      NEW: 'pending',
+      ACCEPTED: 'accepted',
+      'IN PROGRESS': 'in_progress',
+      COMPLETED: 'completed',
+      REJECTED: 'rejected',
+    };
+    try {
+      await updateRoomRequestStatus(reqId, statuses[newStatus]);
+      if (selectedRequest?.id === reqId) {
+        setSelectedRequest((previous) => previous ? { ...previous, status: newStatus } : null);
+      }
+      showToast(`Request status updated to ${newStatus}`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update request status.');
+    }
   };
 
   // Render Service Icon for badge

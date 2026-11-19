@@ -83,15 +83,16 @@ function ServiceConfirmationContent() {
   const roomNumber = queryRoom || guest?.roomNumber || '104';
   const queryTicketId = searchParams.get('id');
 
-  const latestRequest = roomRequests[0];
-  const ticketId = queryTicketId || latestRequest?.ticketNumber || '#NV-000000';
+  const latestRequest = roomRequests.find((request) => request.id === queryTicketId)
+    || roomRequests[0];
+  const ticketId = latestRequest?.ticketNumber || '#REQ-0000';
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
   // Template toggle mode so reviewer can see literal mockup {variables} or live rich state
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -378,7 +379,7 @@ function ServiceConfirmationContent() {
         <div className="pt-2 space-y-3 text-center">
           {/* Bronze View Request Status Button */}
           <Link
-            href="/guest/services/status"
+            href={`/guest/services/status?id=${encodeURIComponent(latestRequest?.id || '')}&room=${encodeURIComponent(roomNumber)}`}
             className="w-full py-4 px-6 rounded-2xl bg-[#705535] hover:bg-[#5C452A] text-white font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition active:scale-98"
           >
             <span>View Request Status</span>

@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
 import {
   LogOut,
   LayoutDashboard,
@@ -36,6 +35,7 @@ import {
   Smartphone,
   RotateCcw,
 } from 'lucide-react';
+import { apiRequest } from '@/lib/api';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -96,12 +96,10 @@ function ContactBookIcon({ className = 'w-5 h-5' }: { className?: string }) {
 }
 
 function AdminSettingsContent() {
-  const searchParams = useSearchParams();
-  const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
-
+  const isLiteralMockup = false;
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Form States (matching screenshot)
   const [hotelName, setHotelName] = useState('Nivora Resort & Spa, Goa');
@@ -135,38 +133,93 @@ function AdminSettingsContent() {
   const [isCoverModalOpen, setIsCoverModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  const showToast = (msg: string) => {
+  const showToast = React.useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 3200);
-  };
+  }, []);
+
+  const loadHotelSettings = React.useCallback(async () => {
+    try {
+      const { hotel } = await apiRequest<{
+        hotel: {
+          hotel_name: string;
+          logo_url: string | null;
+          cover_image_url: string | null;
+          welcome_message: string | null;
+          primary_color: string | null;
+          secondary_color: string | null;
+          phone: string | null;
+          whatsapp: string | null;
+          address: string | null;
+          modules: {
+            food_ordering: boolean;
+            room_service: boolean;
+            contact_reception: boolean;
+            hotel_information: boolean;
+          };
+        };
+      }>('/hotel');
+      setHotelName(hotel.hotel_name);
+      setLogoFileName(hotel.logo_url || '');
+      setCoverImage(hotel.cover_image_url || '');
+      setWelcomeMessage(hotel.welcome_message || '');
+      setPrimaryColor(hotel.primary_color || '#8B6F47');
+      setSecondaryColor(hotel.secondary_color || '#C5A880');
+      setPhone(hotel.phone || '');
+      setWhatsapp(hotel.whatsapp || '');
+      setAddress(hotel.address || '');
+      setModuleFood(hotel.modules.food_ordering);
+      setModuleRoomService(hotel.modules.room_service);
+      setModuleReception(hotel.modules.contact_reception);
+      setModuleInfo(hotel.modules.hotel_information);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to load hotel settings.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    void loadHotelSettings();
+  }, [loadHotelSettings]);
 
   const handleDiscardChanges = () => {
-    setHotelName('Nivora Resort & Spa, Goa');
-    setLogoFileName('nivora-crest-gold.svg');
-    setCoverImage('/hero-balcony.jpg');
-    setCoverTitle('Oceanfront Balcony ROOM Compendium Banner');
-    setWelcomeMessage(
-      'Welcome to Nivora Resort & Spa. Elevate your stay with our bespoke in-room dining, artisan amenities, and private concierge service. Seamlessly ordered from your ROOM.'
-    );
-    setPrimaryColor('#8B6F47');
-    setSecondaryColor('#C5A880');
-    setPhone('+91 832 279 9000');
-    setWhatsapp('+91 982 211 0');
-    setAddress('Villa Del Mar, Aguada Siolim Road, Sinquerim, Goa 403515, India');
-    setModuleFood(true);
-    setModuleRoomService(true);
-    setModuleReception(true);
-    setModuleInfo(true);
-    setHasUnsavedChanges(false);
-    showToast('Changes discarded. Restored resort defaults.');
+    void loadHotelSettings();
   };
 
-  const handleSaveChanges = (e?: React.FormEvent) => {
+  const handleSaveChanges = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    setHasUnsavedChanges(false);
-    showToast('Hotel settings updated successfully across all guest touchpoints.');
+    try {
+      await apiRequest('/hotel', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          hotel_name: hotelName,
+          logo_url: /^https?:\/\//i.test(logoFileName) || logoFileName.startsWith('/')
+            ? logoFileName
+            : undefined,
+          cover_image_url: coverImage || null,
+          welcome_message: welcomeMessage,
+          primary_color: primaryColor,
+          secondary_color: secondaryColor,
+          phone,
+          whatsapp,
+          address,
+          modules: {
+            food_ordering: moduleFood,
+            room_service: moduleRoomService,
+            contact_reception: moduleReception,
+            hotel_information: moduleInfo,
+          },
+        }),
+      });
+      setHasUnsavedChanges(false);
+      showToast('Hotel settings updated.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to save hotel settings.');
+    }
   };
 
   return (
@@ -299,15 +352,6 @@ function AdminSettingsContent() {
               <span className="text-[#B8AEA2]">/</span>
               <span className="font-semibold text-[#201A15]">Hotel Configuration</span>
 
-              {/* Mode Toggle ({var} vs Live) */}
-              <button
-                type="button"
-                onClick={() => setIsLiteralMockup(!isLiteralMockup)}
-                className="ml-3 px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-[#EFE9DF] text-[#705535] hover:bg-[#E5DDCF] border border-[#DDD5C9] transition"
-                title="Toggle template placeholder representation vs live values"
-              >
-                {isLiteralMockup ? '{var} Mode' : 'Live Mode'}
-              </button>
             </div>
 
             <div className="flex items-center gap-4">
@@ -344,6 +388,7 @@ function AdminSettingsContent() {
               <button
                 type="button"
                 onClick={handleDiscardChanges}
+                disabled={isLoading}
                 className="px-4 py-2.5 rounded-xl border border-[#D8CEBF] bg-[#F2EDE7] hover:bg-[#EAE2D7] text-[#5A5046] text-xs font-bold shadow-2xs transition cursor-pointer"
               >
                 Discard Changes
@@ -353,7 +398,8 @@ function AdminSettingsContent() {
               <button
                 type="button"
                 onClick={handleSaveChanges}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#705535] hover:bg-[#5C452A] text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                disabled={isLoading || !hasUnsavedChanges}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#705535] hover:bg-[#5C452A] text-white text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="w-4 h-4" />
                 <span>Save Changes</span>
@@ -471,13 +517,20 @@ function AdminSettingsContent() {
 
                   {/* 16:9 Hero Image Banner */}
                   <div className="relative rounded-2xl overflow-hidden border border-[#DDD5C9] aspect-video bg-[#241C15] group shadow-inner">
-                    <Image
-                      src={coverImage}
-                      alt="Resort Cover Banner"
-                      fill
-                      className="object-cover transition duration-300 group-hover:scale-102"
-                      priority
-                    />
+                    {coverImage ? (
+                      <Image
+                        src={coverImage}
+                        alt="Resort Cover Banner"
+                        fill
+                        unoptimized
+                        className="object-cover transition duration-300 group-hover:scale-102"
+                        priority
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-xs text-white/70">
+                        No cover image configured
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
 
                     {/* Overlay Details */}
@@ -1139,12 +1192,19 @@ function AdminSettingsContent() {
             <div className="bg-[#FAF8F5] rounded-2xl overflow-hidden text-[#201A15] shadow-inner border border-[#DDD5C9]">
               {/* Header Banner */}
               <div className="relative aspect-video w-full bg-black">
-                <Image
-                  src={coverImage}
-                  alt="Guest Preview Banner"
-                  fill
-                  className="object-cover"
-                />
+                {coverImage ? (
+                  <Image
+                    src={coverImage}
+                    alt="Guest Preview Banner"
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-xs text-white/70">
+                    No cover image configured
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute bottom-3 left-3 right-3 text-white">
                   <span className="text-[9px] uppercase tracking-widest text-[#D4AF37] font-bold">

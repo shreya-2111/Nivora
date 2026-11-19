@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { apiRequest } from '@/lib/api';
 import {
   LogOut,
   LayoutDashboard,
@@ -27,7 +28,6 @@ import {
   Eye,
   Check,
   Info,
-  Archive,
   Save,
   RotateCcw,
 } from 'lucide-react';
@@ -75,60 +75,28 @@ function ConciergeHandBellIcon({ className = 'w-5 h-5' }: { className?: string }
 interface DishOption {
   id: string;
   title: string;
-  description: string;
   priceDelta: number; // 0 for included
+  isActive: boolean;
 }
 
-function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
+function AdminEditFoodItemContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  // Template toggle mode: {var} vs live data
-  const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
-
-  // Form State matching Screen 19
-  const [foodName, setFoodName] = useState(isNew ? '' : 'Artisanal Wagyu Burger');
-  const [category, setCategory] = useState('Handcrafted Sandwiches & Burgers');
-  const [description, setDescription] = useState(
-    isNew
-      ? ''
-      : 'Prime wagyu patty, brioche bun, aged truffle aioli, aged cheddar, caramelized shallots, served with triple-cooked sea salt fries.'
-  );
-  const [price, setPrice] = useState<number>(isNew ? 650 : 925);
+  const itemId = searchParams.get('id');
+  const isNew = !itemId;
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [foodName, setFoodName] = useState('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState<number>(0);
   const [isAvailable, setIsAvailable] = useState(true);
-  const [isVeg, setIsVeg] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState(
-    'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80'
-  );
-
-  // Options list matching Screen 19
-  const [options, setOptions] = useState<DishOption[]>([
-    {
-      id: 'opt_1',
-      title: 'Brioche Bun Selection',
-      description: 'Standard Artisanal Baked Bun',
-      priceDelta: 0,
-    },
-    {
-      id: 'opt_2',
-      title: 'Doneness: Medium-Rare',
-      description: 'Chef recommended grilling precision',
-      priceDelta: 0,
-    },
-    {
-      id: 'opt_3',
-      title: 'Aged Truffle Gouda Upgrade',
-      description: 'Imported 18-month aged Dutch cheese',
-      priceDelta: 150,
-    },
-    {
-      id: 'opt_4',
-      title: 'Double Wagyu Patty',
-      description: 'Additional 180g Miyazaki A5 grilled cut',
-      priceDelta: 450,
-    },
-  ]);
+  const [isVeg, setIsVeg] = useState(true);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [options, setOptions] = useState<DishOption[]>([]);
 
   // Inline option creator state
   const [newOptionTitle, setNewOptionTitle] = useState('');
@@ -142,6 +110,78 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  useEffect(() => {
+    let active = true;
+    const loadItem = async () => {
+      try {
+        const { categories: menuCategories } = await apiRequest<{
+          categories: Array<{
+            id: string;
+            name: string;
+            items: Array<{
+              id: string;
+              name: string;
+              description: string | null;
+              price: number;
+              image_url: string | null;
+              is_vegetarian: boolean;
+              is_available: boolean;
+              options: Array<{ id: string; name: string; price: number; is_active: boolean }>;
+            }>;
+          }>;
+        }>('/menu');
+        if (!active) return;
+
+        setCategories(menuCategories.map(({ id, name }) => ({ id, name })));
+        if (isNew) {
+          setCategory(menuCategories[0]?.id || '');
+          return;
+        }
+
+        const menuItem = menuCategories
+          .flatMap((menuCategory) => menuCategory.items.map((item) => ({
+            ...item,
+            categoryId: menuCategory.id,
+          })))
+          .find((item) => item.id === itemId);
+        if (!menuItem) {
+          setLoadError('Menu item not found.');
+          return;
+        }
+
+        setFoodName(menuItem.name);
+        setCategory(menuItem.categoryId);
+        setDescription(menuItem.description || '');
+        setPrice(Number(menuItem.price));
+        setPhotoUrl(menuItem.image_url || '');
+        setIsVeg(menuItem.is_vegetarian);
+        setIsAvailable(menuItem.is_available);
+        setOptions(menuItem.options.map((option) => ({
+          id: option.id,
+          title: option.name,
+          priceDelta: Number(option.price),
+          isActive: option.is_active,
+        })));
+      } catch (error) {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load menu item.');
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+
+    void loadItem();
+    return () => {
+      active = false;
+    };
+  }, [isNew, itemId]);
+
+  useEffect(() => {
+    if (!imageFile || !photoUrl.startsWith('blob:')) return;
+    return () => URL.revokeObjectURL(photoUrl);
+  }, [imageFile, photoUrl]);
+
   // Add Option handler
   const handleAppendOption = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,8 +190,8 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
     const opt: DishOption = {
       id: `opt_${Date.now()}`,
       title: newOptionTitle.trim(),
-      description: 'Custom guest selection choice',
       priceDelta: Number(newOptionPrice) || 0,
+      isActive: true,
     };
 
     setOptions((prev) => [...prev, opt]);
@@ -166,36 +206,98 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
     showToast(`Removed option "${title}"`);
   };
 
-  // Replace photo simulation
-  const handleReplacePhoto = () => {
-    const photos = [
-      'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=800&q=80',
-    ];
-    const nextIdx = (photos.indexOf(photoUrl) + 1) % photos.length;
-    setPhotoUrl(photos[nextIdx]);
-    showToast('Updated active food photography asset');
-  };
-
-  // Save food item
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    showToast(`Saved "${foodName || 'Item'}" to live guest compendium`);
-    setTimeout(() => {
-      router.push('/admin/menu/items');
-    }, 1200);
-  };
+    if (!category) {
+      showToast('Create a menu category before saving an item.');
+      return;
+    }
 
-  // Archive
-  const handleArchive = () => {
-    if (confirm(`Are you sure you want to archive "${foodName}" from the catalog?`)) {
-      showToast(`Archived "${foodName}" from live database`);
-      setTimeout(() => {
-        router.push('/admin/menu/items');
-      }, 1000);
+    const fields = {
+      category_id: category,
+      name: foodName.trim(),
+      description: description.trim(),
+      price,
+      is_vegetarian: isVeg,
+      is_available: isAvailable,
+      options: options.map((option) => ({
+        name: option.title,
+        price: option.priceDelta,
+        is_active: option.isActive,
+      })),
+    };
+    const body = imageFile ? new FormData() : null;
+    if (body) {
+      Object.entries(fields).forEach(([key, value]) => {
+        body.append(key, key === 'options' ? JSON.stringify(value) : String(value));
+      });
+      if (imageFile) body.append('image', imageFile);
+    }
+
+    try {
+      await apiRequest(isNew ? '/menu/items' : `/menu/items/${itemId}`, {
+        method: isNew ? 'POST' : 'PATCH',
+        body: body || JSON.stringify({
+          ...fields,
+          image_url: photoUrl || undefined,
+        }),
+      });
+      showToast(`${isNew ? 'Added' : 'Saved'} "${foodName.trim()}" to the menu.`);
+      router.push('/admin/menu/items');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to save the menu item.');
     }
   };
+
+  const handleDelete = async () => {
+    if (!itemId || !confirm(`Permanently delete "${foodName}" from the menu?`)) return;
+    try {
+      await apiRequest(`/menu/items/${itemId}`, { method: 'DELETE' });
+      showToast(`Deleted "${foodName}" from the menu.`);
+      router.push('/admin/menu/items');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to delete the menu item.');
+    }
+  };
+
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Choose an image file.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image must be 5 MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+    setImageFile(file);
+    setPhotoUrl(URL.createObjectURL(file));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center text-xs text-[#7A6F63]">
+        Loading menu item…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center gap-4 text-sm text-[#7A6F63]">
+        <p>{loadError}</p>
+        <Link href="/admin/menu/items" className="text-[#705535] font-bold hover:underline">
+          Back to menu items
+        </Link>
+      </div>
+    );
+  }
+
+  const previewImage = photoUrl || '/overwater-dish.jpg';
+  const categoryName = categories.find((menuCategory) => menuCategory.id === category)?.name || '';
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#201A15] flex flex-col font-sans selection:bg-[#EAE2D8] selection:text-[#201A15]">
@@ -333,16 +435,6 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
             </nav>
 
             <div className="flex items-center gap-4">
-              {/* Variable vs Live switcher */}
-              <button
-                type="button"
-                onClick={() => setIsLiteralMockup((v) => !v)}
-                className="text-[9px] font-bold px-2.5 py-1 rounded-md bg-[#F2EDE7] text-[#7A6F63] hover:text-[#201A15] border border-[#E5DFD5] transition cursor-pointer"
-                title="Toggle between Template Mockup and Live View"
-              >
-                {isLiteralMockup ? '{var}' : 'live'}
-              </button>
-
               <Link
                 href="/admin/login"
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
@@ -364,12 +456,12 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
             </Link>
 
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D9] text-xs font-mono font-bold text-[#4E4438] shadow-2xs">
-              <span>ITEM ID: #NV-BUR-01</span>
+              <span>ITEM ID: {itemId || 'NEW'}</span>
             </div>
 
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FDF0E2] border border-[#F6D7BC] text-xs font-bold text-[#8C5D29] shadow-2xs">
               <span className="w-1.5 h-1.5 rounded-full bg-[#C27E43]" />
-              <span>Live in Compendium</span>
+              <span>{isNew ? 'New Item' : 'Live in Compendium'}</span>
             </div>
           </div>
 
@@ -470,16 +562,17 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
                   </label>
 
                   <select
+                    required
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full bg-[#FAF7F2] border border-[#EAE3D9] rounded-xl px-4 py-3 text-xs font-bold text-[#201A15] focus:outline-none focus:border-[#705535] transition cursor-pointer"
                   >
-                    <option value="Handcrafted Sandwiches & Burgers">Handcrafted Sandwiches &amp; Burgers</option>
-                    <option value="Gourmet Mains & Grills">Gourmet Mains &amp; Grills</option>
-                    <option value="Fresh Salads & Starters">Fresh Salads &amp; Starters</option>
-                    <option value="Desserts & Sweet Delicacies">Desserts &amp; Sweet Delicacies</option>
-                    <option value="Signature Beverages & Refreshments">Signature Beverages &amp; Refreshments</option>
-                    <option value="Artisanal Breakfast & Bakery">Artisanal Breakfast &amp; Bakery</option>
+                    <option value="" disabled>Select a category</option>
+                    {categories.map((menuCategory) => (
+                      <option key={menuCategory.id} value={menuCategory.id}>
+                        {menuCategory.name}
+                      </option>
+                    ))}
                   </select>
 
                   <p className="text-[11px] text-[#8A8074]">
@@ -657,8 +750,8 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
                           {
                             id: `opt_${Date.now()}`,
                             title: optName,
-                            description: 'Guest selection',
                             priceDelta: 0,
+                            isActive: true,
                           },
                         ]);
                         showToast(`Added option "${optName}"`);
@@ -682,7 +775,7 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
                         <GripVertical className="w-4 h-4 text-[#C2B7A8] cursor-grab hover:text-[#705535]" />
                         <div>
                           <p className="font-bold text-[#201A15]">{opt.title}</p>
-                          <p className="text-[11px] text-[#7A6F63]">{opt.description}</p>
+                          {!opt.isActive && <p className="text-[11px] text-[#7A6F63]">Unavailable to guests</p>}
                         </div>
                       </div>
 
@@ -794,7 +887,7 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
                 {/* Big Photo Preview */}
                 <div className="relative w-full h-56 rounded-2xl overflow-hidden bg-[#F2EDE7] border border-[#E8E2D8] group">
                   <Image
-                    src={photoUrl}
+                    src={previewImage}
                     alt={foodName || 'Dish preview'}
                     fill
                     unoptimized
@@ -811,30 +904,23 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
                   </div>
                 </div>
 
-                {/* Replace Photo Button */}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                />
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleReplacePhoto}
+                    onClick={() => photoInputRef.current?.click()}
                     className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[#E8E2D8] bg-white text-xs font-bold text-[#201A15] hover:bg-[#FAF7F2] transition cursor-pointer shadow-2xs active:scale-98"
                   >
                     <Camera className="w-3.5 h-3.5 text-[#705535]" />
                     <span>Replace Photo</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm('Remove photo asset?')) {
-                        setPhotoUrl('https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80');
-                        showToast('Reverted to default photography');
-                      }
-                    }}
-                    className="p-2.5 rounded-xl border border-[#E8E2D8] bg-white text-[#8A8074] hover:text-[#C2410C] hover:bg-[#FAF7F2] transition cursor-pointer shadow-2xs"
-                    title="Delete photo"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
 
                 <p className="text-[10px] text-[#7A6F63] leading-relaxed">
@@ -865,14 +951,14 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
                 {/* Simulated In-Room Tablet Card */}
                 <div className="bg-[#FAF8F5] border border-[#EAE3D9] rounded-2xl p-4 shadow-xs space-y-3">
                   <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-[#8A8074]">
-                    <span>{category.toUpperCase()}</span>
+                    <span>{categoryName.toUpperCase()}</span>
                     <span>GUEST VIEW</span>
                   </div>
 
                   {/* Image with badges */}
                   <div className="relative w-full h-40 rounded-xl overflow-hidden bg-[#F2EDE7] border border-[#E5DFD5]">
                     <Image
-                      src={photoUrl}
+                      src={previewImage}
                       alt="Guest view"
                       fill
                       unoptimized
@@ -954,14 +1040,16 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
 
                 {/* Archive link & timestamp */}
                 <div className="pt-2 border-t border-[#F2ECE3] flex items-center justify-between text-xs">
-                  <button
-                    type="button"
-                    onClick={handleArchive}
-                    className="text-[#C2410C] font-bold hover:underline inline-flex items-center gap-1.5 cursor-pointer text-xs"
-                  >
-                    <Archive className="w-3.5 h-3.5" />
-                    <span>Archive from Menu Database</span>
-                  </button>
+                  {!isNew && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="text-[#C2410C] font-bold hover:underline inline-flex items-center gap-1.5 cursor-pointer text-xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete from Menu Database</span>
+                    </button>
+                  )}
 
                   <span className="text-[11px] text-[#8A8074]">
                     Last edited: Today, 14:28

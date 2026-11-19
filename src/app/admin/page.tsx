@@ -85,7 +85,7 @@ function AdminDashboardContent() {
 
   // Template toggle mode: {var} vs live data
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -216,12 +216,81 @@ function AdminDashboardContent() {
     },
   ];
 
-  const handleOrderAction = (orderId: string, action: string) => {
-    showToast(`Order updated: ${action}`);
+  const liveOrders = orders.map((order) => {
+    const statusType =
+      order.backendStatus === 'NEW' ? 'new'
+        : order.backendStatus === 'ACCEPTED' || order.backendStatus === 'PREPARING' ? 'preparing'
+          : order.backendStatus === 'READY' ? 'ready'
+            : order.backendStatus === 'REJECTED' ? 'rejected'
+              : 'delivered';
+    const actionLabel =
+      order.backendStatus === 'NEW' ? 'Accept'
+        : order.backendStatus === 'ACCEPTED' || order.backendStatus === 'PREPARING' ? 'Mark Ready'
+          : order.backendStatus === 'READY' ? 'Mark Delivered'
+            : '';
+    return {
+      id: order.id,
+      room: `ROOM ${order.roomNumber}`,
+      items: order.items.map((item) => `${item.quantity}x ${item.name}`).join(', '),
+      notes: order.deliveryNotes || '',
+      total: Math.round(order.totalAmount * 85).toLocaleString('en-IN'),
+      status: order.backendStatus || '',
+      statusType,
+      isOutOfStock: false,
+      time: order.placedAt,
+      timeAgo: '',
+      actionLabel,
+    };
+  });
+
+  const liveRequests = roomRequests.map((request) => ({
+    id: request.id,
+    room: `ROOM ${request.roomNumber}`,
+    title: request.serviceCategory,
+    notes: request.requestItem,
+    status: request.backendStatus || '',
+    statusType:
+      request.backendStatus === 'NEW' ? 'new'
+        : request.backendStatus === 'ACCEPTED' ? 'accepted'
+          : request.backendStatus === 'IN_PROGRESS' ? 'in_progress'
+            : request.backendStatus === 'COMPLETED' ? 'completed'
+              : 'completed',
+    time: request.createdAt,
+    timeAgo: '',
+    actionLabel:
+      request.backendStatus === 'NEW' ? 'Dispatch'
+        : request.backendStatus === 'ACCEPTED' ? 'Start'
+          : request.backendStatus === 'IN_PROGRESS' ? 'Complete'
+            : 'Details',
+  }));
+
+  const displayedOrders = isLiteralMockup ? mockupOrders : liveOrders;
+  const displayedRequests = isLiteralMockup ? mockupRequests : liveRequests;
+
+  const handleOrderAction = async (orderId: string, status: OrderStatus, action: string) => {
+    if (isLiteralMockup) {
+      showToast(`Order updated: ${action}`);
+      return;
+    }
+    try {
+      await updateOrderStatus(orderId, status);
+      showToast(`Order updated: ${action}`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update the order.');
+    }
   };
 
-  const handleRequestAction = (reqId: string, action: string) => {
-    showToast(`Room request updated: ${action}`);
+  const handleRequestAction = async (requestId: string, status: RequestStatus, action: string) => {
+    if (isLiteralMockup) {
+      showToast(`Room request updated: ${action}`);
+      return;
+    }
+    try {
+      await updateRoomRequestStatus(requestId, status);
+      showToast(`Room request updated: ${action}`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update the request.');
+    }
   };
 
   return (
@@ -623,7 +692,7 @@ function AdminDashboardContent() {
                 </thead>
 
                 <tbody className="divide-y divide-[#F2ECE3]">
-                  {mockupOrders.map((order, idx) => (
+                  {displayedOrders.map((order, idx) => (
                     <tr
                       key={idx}
                       className="hover:bg-[#FAF8F5] transition-colors"
@@ -702,7 +771,7 @@ function AdminDashboardContent() {
                         {order.actionLabel === 'Accept' && (
                           <button
                             type="button"
-                            onClick={() => handleOrderAction(order.id, 'Accepted by kitchen')}
+                            onClick={() => handleOrderAction(order.id, 'placed', 'Accepted by kitchen')}
                             className="bg-[#705535] hover:bg-[#5C452A] text-white text-[11px] font-bold px-3 py-1 rounded-lg transition shadow-2xs cursor-pointer"
                           >
                             Accept
@@ -711,7 +780,7 @@ function AdminDashboardContent() {
                         {order.actionLabel === 'Mark Ready' && (
                           <button
                             type="button"
-                            onClick={() => handleOrderAction(order.id, 'Marked ready for dispatch')}
+                            onClick={() => handleOrderAction(order.id, 'on_the_way', 'Marked ready for dispatch')}
                             className="bg-[#EDE7DE] hover:bg-[#DDD5CB] text-[#201A15] text-[11px] font-bold px-3 py-1 rounded-lg transition cursor-pointer"
                           >
                             Mark Ready
@@ -720,7 +789,7 @@ function AdminDashboardContent() {
                         {order.actionLabel === 'Mark Delivered' && (
                           <button
                             type="button"
-                            onClick={() => handleOrderAction(order.id, 'Marked delivered to suite')}
+                            onClick={() => handleOrderAction(order.id, 'delivered', 'Marked delivered to suite')}
                             className="bg-[#EDE7DE] hover:bg-[#DDD5CB] text-[#201A15] text-[11px] font-bold px-3 py-1 rounded-lg transition cursor-pointer"
                           >
                             Mark Delivered
@@ -807,7 +876,7 @@ function AdminDashboardContent() {
                 </thead>
 
                 <tbody className="divide-y divide-[#F2ECE3]">
-                  {mockupRequests.map((req, idx) => (
+                  {displayedRequests.map((req, idx) => (
                     <tr
                       key={idx}
                       className="hover:bg-[#FAF8F5] transition-colors"
@@ -874,7 +943,7 @@ function AdminDashboardContent() {
                           {req.actionLabel === 'Dispatch' && (
                             <button
                               type="button"
-                              onClick={() => handleRequestAction(req.id, 'Dispatched to floor butler')}
+                              onClick={() => handleRequestAction(req.id, 'accepted', 'Dispatched to floor butler')}
                               className="bg-[#705535] hover:bg-[#5C452A] text-white text-[11px] font-bold px-3 py-1 rounded-lg transition shadow-2xs cursor-pointer"
                             >
                               Dispatch
@@ -883,7 +952,7 @@ function AdminDashboardContent() {
                           {req.actionLabel === 'Start' && (
                             <button
                               type="button"
-                              onClick={() => handleRequestAction(req.id, 'Service started')}
+                              onClick={() => handleRequestAction(req.id, 'in_progress', 'Service started')}
                               className="bg-[#EDE7DE] hover:bg-[#DDD5CB] text-[#201A15] text-[11px] font-bold px-3 py-1 rounded-lg transition cursor-pointer"
                             >
                               Start
@@ -892,7 +961,7 @@ function AdminDashboardContent() {
                           {req.actionLabel === 'Complete' && (
                             <button
                               type="button"
-                              onClick={() => handleRequestAction(req.id, 'Service marked complete')}
+                              onClick={() => handleRequestAction(req.id, 'completed', 'Service marked complete')}
                               className="bg-[#EDE7DE] hover:bg-[#DDD5CB] text-[#201A15] text-[11px] font-bold px-3 py-1 rounded-lg transition cursor-pointer"
                             >
                               Complete

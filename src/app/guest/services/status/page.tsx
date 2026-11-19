@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -80,21 +80,42 @@ function TowelRackIcon({ className = 'w-5 h-5' }: { className?: string }) {
 
 function ServiceStatusContent() {
   const searchParams = useSearchParams();
-  const { guest, roomRequests } = useNivora();
+  const { guest, roomRequests, refreshRequest } = useNivora();
 
   const queryRoom = searchParams.get('room');
-  const roomNumber = queryRoom || guest?.roomNumber || '104';
+  const roomNumber = queryRoom || guest.roomNumber;
   const queryTicketId = searchParams.get('id');
 
-  const latestRequest = roomRequests[0];
-  const ticketId = queryTicketId || latestRequest?.ticketNumber || '#NV-000000';
+  const latestRequest = roomRequests.find((request) => request.id === queryTicketId)
+    || roomRequests[0];
+  const ticketId = latestRequest?.ticketNumber || '#REQ-0000';
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
 
-  // Template toggle mode so reviewer can see literal mockup {variables} or live rich state
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
+
+  useEffect(() => {
+    if (!queryTicketId) return;
+    let active = true;
+    const refresh = () => {
+      void refreshRequest(queryTicketId).then(() => {
+        if (active) setTrackingError(null);
+      }).catch((error: unknown) => {
+        if (active) {
+          setTrackingError(error instanceof Error ? error.message : 'Unable to refresh request status.');
+        }
+      });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [queryTicketId, refreshRequest]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -119,6 +140,11 @@ function ServiceStatusContent() {
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
+      )}
+      {trackingError && (
+        <p role="alert" className="mx-auto mt-3 max-w-2xl px-4 text-center text-xs text-rose-700">
+          {trackingError}
+        </p>
       )}
 
       {/* Main Container - Responsive Full Width */}

@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import {
   LogOut,
   LayoutDashboard,
@@ -34,6 +33,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { apiRequest } from '@/lib/api';
 
 /* Custom SVG Icons matching the mockup */
 function CroissantIcon({ className = 'w-6 h-6' }: { className?: string }) {
@@ -201,9 +201,7 @@ export interface MenuCategoryItem {
 }
 
 function AdminMenuCategoriesContent() {
-  const searchParams = useSearchParams();
-  const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLoading, setIsLoading] = useState(true);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -213,155 +211,160 @@ function AdminMenuCategoriesContent() {
   // New Category Form state
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [newCode, setNewCode] = useState('CAT-007');
-  const [newIconType, setNewIconType] = useState<MenuCategoryItem['iconType']>('bakery');
 
-  const showToast = (msg: string) => {
+  const showToast = React.useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
-  };
+  }, []);
 
-  // Initial 6 Categories matching the Figma mockup
-  const [categories, setCategories] = useState<MenuCategoryItem[]>([
-    {
-      id: 'cat_1',
-      code: 'CAT-001',
-      title: 'Artisanal Breakfast & Bakery',
-      description: 'Fresh viennoiserie, seasonal tropical bowls, pressed',
-      createdDate: 'Nov 12, 2024',
-      updatedDate: 'Today, 09:15 AM',
-      isActive: true,
-      itemCount: 8,
-      iconType: 'bakery',
-    },
-    {
-      id: 'cat_2',
-      code: 'CAT-002',
-      title: 'Gourmet Mains & Grills',
-      description: 'Prime wagyu tenderloin, grilled sea bass, coastal sha',
-      createdDate: 'Nov 12, 2024',
-      updatedDate: 'Yesterday, 04:30 PM',
-      isActive: true,
-      itemCount: 12,
-      iconType: 'grill',
-    },
-    {
-      id: 'cat_3',
-      code: 'CAT-003',
-      title: 'Handcrafted Sandwiches & Bu',
-      description: 'Dry-aged smash burgers, lobster rolls, focaccia club s',
-      createdDate: 'Nov 12, 2024',
-      updatedDate: '3 days ago',
-      isActive: true,
-      itemCount: 6,
-      iconType: 'burger',
-    },
-    {
-      id: 'cat_4',
-      code: 'CAT-004',
-      title: 'Fresh Salads & Starters',
-      description: 'Hydroponic greens, burrata caprese, yellowfin crudo',
-      createdDate: 'Nov 14, 2024',
-      updatedDate: 'Nov 19, 2024',
-      isActive: true,
-      itemCount: 5,
-      iconType: 'salad',
-    },
-    {
-      id: 'cat_5',
-      code: 'CAT-005',
-      title: 'Desserts & Sweet Delicacies',
-      description: 'Valrhona dark chocolate tart, Tahitian vanilla bean sou',
-      createdDate: 'Nov 15, 2024',
-      updatedDate: 'Dec 01, 2024',
-      isActive: true,
-      itemCount: 4,
-      iconType: 'dessert',
-    },
-    {
-      id: 'cat_6',
-      code: 'CAT-006',
-      title: 'Signature Beverages & Refresh',
-      description: 'Zero-proof botanicals, barrel-aged cellared cocktails,',
-      createdDate: 'Nov 16, 2024',
-      updatedDate: 'Dec 04, 2024',
-      isActive: true,
-      itemCount: 7,
-      iconType: 'beverage',
-    },
-  ]);
+  const [categories, setCategories] = useState<MenuCategoryItem[]>([]);
+  const loadCategories = React.useCallback(async () => {
+    try {
+      const { categories: apiCategories } = await apiRequest<{
+        categories: Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          sort_order: number;
+          is_active: boolean;
+          items: unknown[];
+        }>;
+      }>('/menu');
+      setCategories(apiCategories.map((category) => {
+        const name = category.name.toLowerCase();
+        const iconType: MenuCategoryItem['iconType'] = name.includes('bakery') || name.includes('breakfast')
+          ? 'bakery'
+          : name.includes('grill') || name.includes('main')
+          ? 'grill'
+          : name.includes('sandwich') || name.includes('burger')
+          ? 'burger'
+          : name.includes('dessert')
+          ? 'dessert'
+          : name.includes('beverage') || name.includes('drink')
+          ? 'beverage'
+          : 'salad';
+        return {
+          id: category.id,
+          code: `CAT-${String(category.sort_order).padStart(3, '0')}`,
+          title: category.name,
+          description: category.description || '',
+          createdDate: '',
+          updatedDate: '',
+          isActive: category.is_active,
+          itemCount: category.items.length,
+          iconType,
+        };
+      }));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to load menu categories.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
 
   // Total active & dish calculations
   const totalDishes = useMemo(() => categories.reduce((sum, c) => sum + c.itemCount, 0), [categories]);
   const activeCount = useMemo(() => categories.filter((c) => c.isActive).length, [categories]);
 
   // Reorder functions
+  const saveCategoryOrder = async (reordered: MenuCategoryItem[]) => {
+    try {
+      await apiRequest('/menu/categories/reorder', {
+        method: 'PATCH',
+        body: JSON.stringify({ ids: reordered.map((category) => category.id) }),
+      });
+      await loadCategories();
+      showToast('Category order saved.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to save category order.');
+    }
+  };
+
   const moveUp = (index: number) => {
     if (index === 0) return;
-    setCategories((prev) => {
-      const copy = [...prev];
-      const temp = copy[index - 1];
-      copy[index - 1] = copy[index];
-      copy[index] = temp;
-      return copy;
-    });
-    showToast(`Sequence updated: Moved up to #${index}`);
+    const reordered = [...categories];
+    [reordered[index - 1], reordered[index]] = [reordered[index], reordered[index - 1]];
+    void saveCategoryOrder(reordered);
   };
 
   const moveDown = (index: number) => {
     if (index === categories.length - 1) return;
-    setCategories((prev) => {
-      const copy = [...prev];
-      const temp = copy[index + 1];
-      copy[index + 1] = copy[index];
-      copy[index] = temp;
-      return copy;
-    });
-    showToast(`Sequence updated: Moved down to #${index + 2}`);
+    const reordered = [...categories];
+    [reordered[index + 1], reordered[index]] = [reordered[index], reordered[index + 1]];
+    void saveCategoryOrder(reordered);
   };
 
   // Delete category
-  const handleDelete = (catId: string, title: string) => {
-    if (confirm(`Are you sure you want to delete category "${title}"?`)) {
-      setCategories((prev) => prev.filter((c) => c.id !== catId));
-      showToast(`Category "${title}" removed from catalog`);
+  const handleDelete = async (catId: string, title: string) => {
+    if (confirm(`Delete "${title}" and all of its menu items? This cannot be undone.`)) {
+      try {
+        await apiRequest(`/menu/categories/${catId}`, { method: 'DELETE' });
+        await loadCategories();
+        showToast(`Category "${title}" removed.`);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Unable to delete the category.');
+      }
     }
   };
 
   // Add new category
-  const handleAddCategory = (e: React.FormEvent) => {
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-
-    const newCat: MenuCategoryItem = {
-      id: `cat_${Date.now()}`,
-      code: newCode.trim() || `CAT-00${categories.length + 1}`,
-      title: newTitle.trim(),
-      description: newDescription.trim() || 'Curated luxury culinary offerings for guest in-room dining.',
-      createdDate: 'Today',
-      updatedDate: 'Just now',
-      isActive: true,
-      itemCount: 0,
-      iconType: newIconType,
-    };
-
-    setCategories((prev) => [...prev, newCat]);
-    setIsAddModalOpen(false);
-    setNewTitle('');
-    setNewDescription('');
-    showToast(`Category "${newCat.title}" created successfully`);
+    try {
+      await apiRequest('/menu/categories', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newTitle.trim(),
+          description: newDescription.trim(),
+        }),
+      });
+      await loadCategories();
+      setIsAddModalOpen(false);
+      setNewTitle('');
+      setNewDescription('');
+      showToast(`Category "${newTitle.trim()}" created.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to create the category.');
+    }
   };
 
   // Save edited category
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
+    try {
+      await apiRequest(`/menu/categories/${editingCategory.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editingCategory.title,
+          description: editingCategory.description,
+          is_active: editingCategory.isActive,
+        }),
+      });
+      await loadCategories();
+      setEditingCategory(null);
+      showToast(`Category "${editingCategory.title}" updated.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update the category.');
+    }
+  };
 
-    setCategories((prev) =>
-      prev.map((c) => (c.id === editingCategory.id ? { ...editingCategory, updatedDate: 'Just now' } : c))
-    );
-    setEditingCategory(null);
-    showToast(`Category "${editingCategory.title}" updated`);
+  const toggleCategoryVisibility = async (category: MenuCategoryItem) => {
+    try {
+      await apiRequest(`/menu/categories/${category.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !category.isActive }),
+      });
+      await loadCategories();
+      showToast(`"${category.title}" visibility updated.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update category visibility.');
+    }
   };
 
   // Render appropriate icon
@@ -519,16 +522,6 @@ function AdminMenuCategoriesContent() {
             </nav>
 
             <div className="flex items-center gap-4">
-              {/* Variable vs Live switcher */}
-              <button
-                type="button"
-                onClick={() => setIsLiteralMockup((v) => !v)}
-                className="text-[9px] font-bold px-2.5 py-1 rounded-md bg-[#F2EDE7] text-[#7A6F63] hover:text-[#201A15] border border-[#E5DFD5] transition cursor-pointer"
-                title="Toggle between Template Mockup and Live View"
-              >
-                {isLiteralMockup ? '{var}' : 'live'}
-              </button>
-
               <Link
                 href="/admin/login"
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
@@ -620,7 +613,7 @@ function AdminMenuCategoriesContent() {
             {/* Chip 4: Sync status */}
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FDF0E2] text-[#8C5D29] border border-[#F6D7BC] text-[10px] font-bold uppercase tracking-wider">
               <RefreshCw className="w-3 h-3 text-[#8C5D29]" />
-              <span>SYNC: 2M AGO</span>
+              <span>{isLoading ? 'LOADING' : 'LIVE DATA'}</span>
             </div>
           </div>
 
@@ -652,7 +645,13 @@ function AdminMenuCategoriesContent() {
                 </thead>
 
                 <tbody className="divide-y divide-[#F6F2EC] text-xs">
-                  {categories.map((cat, idx) => (
+                  {categories.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-xs text-[#8A8074]">
+                        {isLoading ? 'Loading categories…' : 'No menu categories have been created.'}
+                      </td>
+                    </tr>
+                  ) : categories.map((cat, idx) => (
                     <tr
                       key={cat.id}
                       className="hover:bg-[#FAF7F2] transition group"
@@ -715,7 +714,7 @@ function AdminMenuCategoriesContent() {
                             </p>
 
                             <p className="text-[11px] text-[#8A8074]">
-                              Created: {cat.createdDate} • Updated: {cat.updatedDate}
+                              Sort order: {cat.code}
                             </p>
                           </div>
                         </div>
@@ -726,12 +725,7 @@ function AdminMenuCategoriesContent() {
                         {cat.isActive ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              setCategories((prev) =>
-                                prev.map((c) => (c.id === cat.id ? { ...c, isActive: false } : c))
-                              );
-                              showToast(`"${cat.title}" set to Hidden`);
-                            }}
+                            onClick={() => void toggleCategoryVisibility(cat)}
                             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF5ED] text-[#2E6B44] border border-[#D0EADB] text-[10px] font-bold uppercase tracking-wider hover:opacity-80 transition cursor-pointer"
                             title="Click to toggle visibility"
                           >
@@ -741,12 +735,7 @@ function AdminMenuCategoriesContent() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => {
-                              setCategories((prev) =>
-                                prev.map((c) => (c.id === cat.id ? { ...c, isActive: true } : c))
-                              );
-                              showToast(`"${cat.title}" activated in Compendium`);
-                            }}
+                            onClick={() => void toggleCategoryVisibility(cat)}
                             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF7F2] text-[#8A8074] border border-[#EAE3D9] text-[10px] font-bold uppercase tracking-wider hover:opacity-80 transition cursor-pointer"
                             title="Click to activate"
                           >
@@ -849,39 +838,6 @@ function AdminMenuCategoriesContent() {
                   placeholder="e.g. Caviar &amp; Raw Bar"
                   className="w-full bg-white border border-[#EAE3D9] rounded-xl px-3.5 py-2.5 text-xs text-[#201A15] focus:outline-none focus:border-[#705535]"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-[#201A15] uppercase tracking-wider text-[10px]">
-                    Category Code
-                  </label>
-                  <input
-                    type="text"
-                    value={newCode}
-                    onChange={(e) => setNewCode(e.target.value)}
-                    placeholder="CAT-007"
-                    className="w-full bg-white border border-[#EAE3D9] rounded-xl px-3.5 py-2.5 text-xs text-[#201A15] focus:outline-none focus:border-[#705535]"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-[#201A15] uppercase tracking-wider text-[10px]">
-                    Category Icon
-                  </label>
-                  <select
-                    value={newIconType}
-                    onChange={(e) => setNewIconType(e.target.value as any)}
-                    className="w-full bg-white border border-[#EAE3D9] rounded-xl px-3.5 py-2.5 text-xs text-[#201A15] focus:outline-none focus:border-[#705535]"
-                  >
-                    <option value="bakery">Bakery / Viennoiserie</option>
-                    <option value="grill">Grill / Steaks</option>
-                    <option value="burger">Sandwiches &amp; Burgers</option>
-                    <option value="salad">Salads &amp; Starters</option>
-                    <option value="dessert">Desserts &amp; Pastry</option>
-                    <option value="beverage">Beverages &amp; Cocktails</option>
-                  </select>
-                </div>
               </div>
 
               <div className="space-y-1">

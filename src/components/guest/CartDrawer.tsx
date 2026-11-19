@@ -10,6 +10,7 @@ export interface CartItemEntry {
   item: MenuItem;
   quantity: number;
   instructions?: string;
+  optionIds?: string[];
 }
 
 interface CartDrawerProps {
@@ -32,23 +33,39 @@ export function CartDrawer({
   const { placeOrder } = useNivora();
   const [deliveryNote, setDeliveryNote] = useState('');
   const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string | null>(null);
+  const [confirmedOrderId, setConfirmedOrderId] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
   // Convert to INR (₹) matching Screen 3
-  const subtotalInr = Math.round(
-    cartItems.reduce((acc, entry) => acc + entry.item.price * entry.quantity * 85, 0)
-  );
+  const subtotalInr = Math.round(cartItems.reduce((total, entry) => {
+    const optionTotal = entry.item.options
+      ?.filter((option) => entry.optionIds?.includes(option.id))
+      .reduce((sum, option) => sum + option.price, 0) || 0;
+    return total + (entry.item.price + optionTotal) * entry.quantity * 85;
+  }, 0));
   const taxInr = Math.round(subtotalInr * 0.05); // 5% GST
   const totalInr = subtotalInr + taxInr;
 
-  const handlePlaceOrder = () => {
-    const created = placeOrder(deliveryNote);
-    setConfirmedOrderNumber(created.orderNumber);
+  const handlePlaceOrder = async () => {
+    setSubmissionError(null);
+    setIsSubmitting(true);
+    try {
+      const created = await placeOrder(deliveryNote);
+      setConfirmedOrderNumber(created.orderNumber);
+      setConfirmedOrderId(created.id);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Unable to place your order.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleResetAndClose = () => {
     setConfirmedOrderNumber(null);
+    setConfirmedOrderId(null);
     onClearCart();
     onClose();
   };
@@ -110,7 +127,7 @@ export function CartDrawer({
 
             <div className="flex flex-col gap-2 w-full pt-2">
               <Link
-                href="/guest/orders"
+                href={`/guest/orders?id=${encodeURIComponent(confirmedOrderId || '')}&room=${encodeURIComponent(guest.roomNumber)}`}
                 onClick={handleResetAndClose}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#85653C] hover:bg-[#684E2D] py-3 text-xs font-bold text-white shadow-xs transition"
               >
@@ -135,7 +152,11 @@ export function CartDrawer({
           <>
             {/* Items List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {cartItems.map(({ item, quantity, instructions }) => (
+              {cartItems.map(({ item, quantity, instructions, optionIds }) => {
+                const optionsTotal = item.options
+                  ?.filter((option) => optionIds?.includes(option.id))
+                  .reduce((sum, option) => sum + option.price, 0) || 0;
+                return (
                 <div
                   key={item.id}
                   className="flex items-start justify-between gap-3 rounded-2xl border border-[#EFE9DF] bg-white p-3.5 shadow-2xs"
@@ -145,7 +166,7 @@ export function CartDrawer({
                       {item.name}
                     </h4>
                     <p className="text-xs font-bold text-[#85653C]">
-                      ₹{(item.price * quantity * 85).toLocaleString('en-IN')}
+                      ₹{((item.price + optionsTotal) * quantity * 85).toLocaleString('en-IN')}
                     </p>
                     {instructions && (
                       <p className="text-[11px] italic text-[#887E72]">
@@ -180,7 +201,8 @@ export function CartDrawer({
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               {/* Delivery Instruction Input */}
               <div className="pt-2">
@@ -225,11 +247,15 @@ export function CartDrawer({
               <button
                 type="button"
                 onClick={handlePlaceOrder}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#85653C] hover:bg-[#684E2D] py-3 text-xs font-bold text-white shadow-md transition active:scale-98 cursor-pointer"
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#85653C] hover:bg-[#684E2D] py-3 text-xs font-bold text-white shadow-md transition active:scale-98 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
               >
-                <span>Place In-Room Dining Order</span>
+                <span>{isSubmitting ? 'Sending Order...' : 'Place In-Room Dining Order'}</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
+              {submissionError && (
+                <p role="alert" className="text-center text-xs text-rose-700">{submissionError}</p>
+              )}
 
               <p className="text-center text-[10px] text-[#8C847B]">
                 Billed directly to Room {guest.roomNumber} folio upon delivery.

@@ -1,21 +1,21 @@
 # Room Service & Food QR System - V1 Backend (Next.js + Supabase)
 
-Backend of the NIVORA spec. Next.js API routes (TypeScript) + Supabase (**PostgreSQL, Auth, Storage, Realtime**) + `qrcode` library.
-The guest and admin screens (frontend) are not part of this project.
+Backend of the NIVORA spec. Next.js API routes (TypeScript) + Supabase (**PostgreSQL, Auth, Storage, Realtime**) + `qrcode` library. The guest/admin frontend is in the repository root and connects to this API.
 
 ## 1. Supabase setup (once)
 1. Create a project on supabase.com
 2. Project Settings > API: copy `Project URL`, `anon key`, `service_role key`
 3. Project Settings > Database > Connection string (URI): copy it and put your DB password
-4. Copy `.env.example` to `.env.local` and fill the values (keep `DB_SSL=true`)
+4. Copy `.env.example` to `.env.local` and fill the values (keep `DB_SSL=true`). Locally, set `CORS_ORIGINS=http://localhost:3000` and `GUEST_BASE_URL=http://localhost:3000`.
 
 ## 2. Run
 ```
 npm install
 npm run setup     # creates tables, Realtime + RLS, Storage bucket "hotel-images", first admin (ADMIN_EMAIL / ADMIN_PASSWORD)
-npm run dev       # http://localhost:3000/api/...
+npm run dev -- -p 3001   # API at http://localhost:3001/api/...
 ```
 `npm run setup` is safe to run again. To add another staff member: change ADMIN_EMAIL / ADMIN_PASSWORD in `.env.local` and run it again.
+Run the frontend from the repository root on port 3000. It uses `http://localhost:3001/api` by default; configure `NEXT_PUBLIC_API_URL` if the backend is hosted elsewhere.
 
 ## 3. Folders (spec section 6)
 ```
@@ -25,7 +25,7 @@ types/          small shared types
 database/       migrations/*.sql (tables, Realtime + RLS) and setup.js
 proxy.ts        CORS for /api (only needed when the frontend is on another domain)
 ```
-(`app/admin`, `app/guest` and `components/` are the frontend - not included.)
+The frontend screens live in the repository root under `src/app` and use the `/api` endpoints above.
 
 ## 4. How each Supabase part is used
 | Spec | Where |

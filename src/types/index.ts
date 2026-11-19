@@ -15,10 +15,12 @@ export interface OrderItem {
   quantity: number;
   specialInstructions?: string;
   image?: string;
+  options?: Array<{ name: string; price: number }>;
 }
 
 export interface ActiveOrder {
   id: string;
+  backendStatus?: string;
   orderNumber: string;
   roomNumber: string;
   guestName: string;
@@ -61,6 +63,13 @@ export type MenuCategory =
   | 'Signature Cocktails'
   | 'Wines & Spirits';
 
+export interface MenuItemOption {
+  id: string;
+  name: string;
+  price: number;
+  isActive: boolean;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -68,22 +77,24 @@ export interface MenuItem {
   price: number;
   calories?: string;
   prepTime: string;
-  category: 'Starters' | 'Mains' | 'Desserts' | 'Signature Cocktails' | 'Wines & Spirits';
+  category: string;
   tag?: string;
   isVegetarian?: boolean;
   isGlutenFree?: boolean;
   isSpicy?: boolean;
   isChefChoice?: boolean;
   isAvailable?: boolean;
+  options?: MenuItemOption[];
   image: string;
 }
 
 export type RequestUrgency = 'Immediate (10-15 mins)' | 'Within 30 mins' | 'Later Today';
 
-export type RequestStatus = 'pending' | 'in_progress' | 'completed';
+export type RequestStatus = 'pending' | 'accepted' | 'in_progress' | 'completed' | 'rejected' | 'cancelled';
 
 export interface RoomServiceRequest {
   id: string;
+  backendStatus?: string;
   ticketNumber: string;
   roomNumber: string;
   guestName: string;

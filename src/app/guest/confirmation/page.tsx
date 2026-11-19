@@ -87,8 +87,11 @@ function OrderConfirmationContent() {
   const roomNumber = queryRoom || guest?.roomNumber || '{room_number}';
   const queryOrderId = searchParams.get('id');
 
-  const latestOrder = orders[0] || activeOrder;
-  const orderId = queryOrderId || latestOrder?.orderNumber || '{order_id}';
+  const latestOrder = orders.find((order) => order.id === queryOrderId) || orders[0] || activeOrder;
+  const orderId = latestOrder?.orderNumber || '{order_id}';
+  const orderStatusHref = latestOrder
+    ? `/guest/orders?id=${encodeURIComponent(latestOrder.id)}&room=${encodeURIComponent(latestOrder.roomNumber)}`
+    : '/guest/orders';
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState(false);
@@ -96,7 +99,7 @@ function OrderConfirmationContent() {
 
   // Template toggle mode so reviewer can see literal mockup {variables} or live rich dish calculation
   const initialMode = searchParams.get('mode');
-  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
+  const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode === 'mock');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -113,23 +116,7 @@ function OrderConfirmationContent() {
     setTimeout(() => setIsCopied(false), 2500);
   };
 
-  // Demo items matching the screenshot
-  const demoItems = [
-    {
-      id: 'item_1',
-      name: '{food_name}',
-      price: 1030,
-      quantity: '{quantity}',
-      selectedOptions: '{selected_options}',
-    },
-    {
-      id: 'item_2',
-      name: '{food_name}',
-      price: 1350,
-      quantity: '{quantity}',
-      selectedOptions: '{selected_options}',
-    },
-  ];
+  const orderItems = latestOrder?.items || [];
 
   return (
     <div className="min-h-screen w-full bg-[#FAF8F5] text-[#221B14] selection:bg-[#705535]/20 selection:text-[#221B14] pb-28 antialiased">
@@ -256,7 +243,7 @@ function OrderConfirmationContent() {
                   TIMESTAMP
                 </p>
                 <p className="text-xs font-bold text-[#201A15] mt-1 leading-tight">
-                  {isLiteralMockup ? '{order_date_time}' : 'Today, 8:42 PM'}
+                  {isLiteralMockup ? '{order_date_time}' : latestOrder?.placedAt || '—'}
                 </p>
               </div>
             </div>
@@ -291,7 +278,7 @@ function OrderConfirmationContent() {
 
               {/* Status Pill */}
               <span className="inline-block bg-[#FDF0E2] border border-[#F6E3CF] text-[#8C5D29] text-[10px] sm:text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
-                {isLiteralMockup ? '{ORDER_STATUS}' : 'NEW RECEIVED'}
+                {isLiteralMockup ? '{ORDER_STATUS}' : latestOrder?.status.toUpperCase().replaceAll('_', ' ') || '—'}
               </span>
             </div>
 
@@ -372,20 +359,25 @@ function OrderConfirmationContent() {
 
           {/* Dish Line Items */}
           <div className="space-y-3.5">
-            {demoItems.map((dish) => (
+            {orderItems.map((dish) => (
               <div key={dish.id} className="space-y-1">
                 <div className="flex items-center justify-between text-[#201A15]">
                   <span className="font-serif text-base sm:text-lg font-bold">
                     {dish.name}
                   </span>
                   <span className="font-serif text-base sm:text-lg font-bold">
-                    ₹{isLiteralMockup ? '{item_total}' : dish.price.toLocaleString('en-IN')}
+                    ₹{isLiteralMockup ? '{item_total}' : Math.round(
+                      (dish.price + (dish.options?.reduce((total, option) => total + option.price, 0) || 0))
+                      * dish.quantity * 85
+                    ).toLocaleString('en-IN')}
                   </span>
                 </div>
                 <p className="text-xs text-[#7A6F63]">
                   Qty: {dish.quantity}{' '}
                   <span className="text-[#998F82] mx-1">•</span> Selected:{' '}
-                  <span className="italic">{dish.selectedOptions}</span>
+                  <span className="italic">
+                    {dish.options?.map((option) => option.name).join(', ') || dish.specialInstructions || 'Standard'}
+                  </span>
                 </p>
               </div>
             ))}
@@ -409,7 +401,7 @@ function OrderConfirmationContent() {
                 ₹
               </span>
               <span className="font-serif text-2xl sm:text-3xl font-bold text-[#705535] leading-none">
-                {isLiteralMockup ? '{order_total}' : '2,380'}
+                {isLiteralMockup ? '{order_total}' : Math.round((latestOrder?.totalAmount || 0) * 85).toLocaleString('en-IN')}
               </span>
             </div>
           </div>
@@ -427,7 +419,7 @@ function OrderConfirmationContent() {
         <div className="pt-2 space-y-3 text-center">
           {/* Bronze View Order Status Button */}
           <Link
-            href="/guest/orders"
+            href={orderStatusHref}
             className="w-full py-4 px-6 rounded-2xl bg-[#705535] hover:bg-[#5C452A] text-white font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition active:scale-98"
           >
             <span>View Order Status</span>
@@ -458,7 +450,7 @@ function OrderConfirmationContent() {
 
           {/* 2. Orders */}
           <Link
-            href="/guest/orders"
+            href={orderStatusHref}
             className="flex flex-col items-center justify-center gap-1 text-[#705535] font-bold text-xs transition"
           >
             <ClocheIcon className="w-5 h-5 text-[#705535]" />
