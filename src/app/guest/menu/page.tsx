@@ -76,6 +76,7 @@ function FoodMenuContent() {
   const {
     guest,
     menuItems,
+    rawMenuCategories,
     cartItems,
     totalCartCount,
     cartSubtotal,
@@ -87,7 +88,7 @@ function FoodMenuContent() {
 
   const searchParams = useSearchParams();
   const queryRoom = searchParams.get('room');
-  const roomUpper = queryRoom ? `ROOM ${queryRoom}` : '{ROOM NUMBER}';
+  const roomUpper = queryRoom ? `ROOM ${queryRoom}` : guest?.roomNumber ? `ROOM ${guest.roomNumber}` : '{ROOM NUMBER}';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDietary, setSelectedDietary] = useState<DietaryFilter>('All Items');
@@ -111,12 +112,25 @@ function FoodMenuContent() {
     return found ? found.quantity : 0;
   };
 
-  // Convert USD to INR (approx 85) for Rupee currency matching mockup
-  const formatPrice = (priceInUsd: number) => {
-    return Math.round(priceInUsd * 85).toLocaleString('en-IN');
+  // Convert USD to INR if needed; backend already provides INR values (e.g. 925)
+  const formatPrice = (price: number) => {
+    const inr = price > 100 ? price : Math.round(price * 85);
+    return Math.round(inr).toLocaleString('en-IN');
   };
 
-  const cartTotalInr = Math.round(cartSubtotal * 85).toLocaleString('en-IN');
+  const cartTotalInr = Math.round(cartSubtotal > 100 ? cartSubtotal : cartSubtotal * 85).toLocaleString('en-IN');
+
+  // Dynamic category pills from live backend or default list
+  const activeCategories = useMemo(() => {
+    if (rawMenuCategories && rawMenuCategories.length > 0) {
+      const list = ['All'];
+      for (const cat of rawMenuCategories) {
+        if (cat.name && !list.includes(cat.name)) list.push(cat.name);
+      }
+      return list;
+    }
+    return CATEGORIES;
+  }, [rawMenuCategories]);
 
   // Filtered menu items
   const filteredItems = useMemo(() => {
@@ -287,7 +301,7 @@ function FoodMenuContent() {
 
         {/* Filter Row 2: Category Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-          {CATEGORIES.map((cat) => {
+          {activeCategories.map((cat) => {
             const isActive = selectedCategory === cat;
             return (
               <button

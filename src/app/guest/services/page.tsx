@@ -230,7 +230,7 @@ function RoomServiceContent() {
     setSelectedAllocation(category.allocations[0]);
   };
 
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
     const finalNote = [
       selectedAllocation,
       requestNote.trim(),
@@ -239,7 +239,7 @@ function RoomServiceContent() {
       .filter(Boolean)
       .join(' — ');
 
-    const ticket = addRoomRequest({
+    const ticket = await addRoomRequest({
       roomNumber: roomNumber === '{room_number}' ? '104' : roomNumber,
       guestName: guest?.name || 'In-Room Guest',
       serviceCategory: selectedCategory.name,

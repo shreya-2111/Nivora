@@ -152,19 +152,31 @@ function CartPageContent() {
     setDemoList((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handlePlaceOrder = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePlaceOrder = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     let orderNum = '#NV-2895';
-    if (hasLiveItems) {
-      const created = placeOrder('Special instructions from Cart screen');
-      orderNum = created.orderNumber;
-      setConfirmedOrderNumber(created.orderNumber);
-    } else {
-      setConfirmedOrderNumber('#NV-2895');
+    let orderId = '';
+    try {
+      if (hasLiveItems) {
+        const created = await placeOrder('In-room dining order');
+        orderNum = created.orderNumber;
+        orderId = created.id;
+        setConfirmedOrderNumber(created.orderNumber);
+      } else {
+        setConfirmedOrderNumber('#NV-2895');
+      }
+      showToast('Order confirmed! Sending to hotel kitchen...');
+      setTimeout(() => {
+        router.push(`/guest/confirmation?id=${encodeURIComponent(orderId || orderNum)}&orderNumber=${encodeURIComponent(orderNum)}&room=${encodeURIComponent(guest?.roomNumber || '404')}`);
+      }, 400);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to place order. Please check item availability.');
+    } finally {
+      setIsSubmitting(false);
     }
-    showToast('Order confirmed! Sending to hotel kitchen...');
-    setTimeout(() => {
-      router.push(`/guest/confirmation?id=${encodeURIComponent(orderNum)}&room=${encodeURIComponent(guest?.roomNumber || '104')}`);
-    }, 400);
   };
 
   return (

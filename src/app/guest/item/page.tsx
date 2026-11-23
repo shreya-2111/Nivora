@@ -80,7 +80,7 @@ function FoodDetailsContent() {
   }, [menuItems, itemId]);
 
   // Base price in INR matching mockup (defaults to 850 if placeholder)
-  const basePriceInr = Math.round((dish?.price || 10) * 85);
+  const basePriceInr = dish?.price > 100 ? Math.round(dish.price) : Math.round((dish?.price || 10) * 85);
 
   // Customization options state (Option 1 selected by default as in mockup)
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(['opt_1']);
@@ -123,7 +123,7 @@ function FoodDetailsContent() {
         .filter(Boolean)
         .join(' | ');
 
-      addToCart(dish, quantity, combinedNotes);
+      addToCart(dish, quantity, combinedNotes, selectedOptionIds, selectedNames, optionsTotalInr);
       showToast(`Added ${quantity}x ${dish.name} to your tray!`);
       setTimeout(() => {
         router.push('/guest/cart');

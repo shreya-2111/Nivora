@@ -131,14 +131,30 @@ function WhatsAppIcon({ className = 'w-4 h-4' }: { className?: string }) {
 }
 
 function GuestHomeContent() {
-  const { guest } = useNivora();
+  const { guest, hotel, setGuestRoom } = useNivora();
   const searchParams = useSearchParams();
 
   const queryRoom = searchParams.get('room');
-  const roomUpper = queryRoom ? `ROOM ${queryRoom}` : '{ROOM_NUMBER}';
-  const roomLower = queryRoom ? `Room ${queryRoom}` : '{room_number}';
-  const phoneDisplay = '{phone_number}';
-  const hotelNameDisplay = '{HOTEL_NAME}';
+  const tokenParam = searchParams.get('token');
+
+  // Auto-resolve QR token if passed via ?token=...
+  React.useEffect(() => {
+    if (tokenParam) {
+      import('@/services/guestService').then(({ guestService }) => {
+        guestService.resolveGuestToken(tokenParam).then((res) => {
+          if (res?.room?.room_number) {
+            setGuestRoom(res.room.room_number);
+          }
+        }).catch(() => {});
+      });
+    }
+  }, [tokenParam, setGuestRoom]);
+
+  const activeRoomNum = queryRoom || guest?.roomNumber || '404';
+  const roomUpper = queryRoom ? `ROOM ${queryRoom}` : guest?.roomNumber ? `ROOM ${guest.roomNumber}` : '{ROOM_NUMBER}';
+  const roomLower = queryRoom ? `Room ${queryRoom}` : guest?.roomNumber ? `Room ${guest.roomNumber}` : '{room_number}';
+  const phoneDisplay = hotel?.phone || '{phone_number}';
+  const hotelNameDisplay = hotel?.hotel_name || '{HOTEL_NAME}';
 
   // Room service request modal state
   const [isModalOpen, setIsModalOpen] = useState(false);

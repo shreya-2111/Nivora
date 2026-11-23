@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { ActiveOrder } from '@/types';
 import { RoomServiceRequestModal } from '@/components/guest/RoomServiceRequestModal';
 
 /* Custom SVG Icons */
@@ -132,6 +133,43 @@ function OrderStatusContent() {
 
   // Interactive current step (defaults to Step 3 "Preparing" matching the screenshot)
   const [currentStep, setCurrentStep] = useState<number>(3);
+  const [realOrder, setRealOrder] = useState<ActiveOrder | null>(null);
+
+  // Poll GET /api/orders/:id every 8s as per spec
+  React.useEffect(() => {
+    if (!queryOrderId) return;
+    let isMounted = true;
+
+    async function fetchStatus() {
+      try {
+        const { ordersService } = await import('@/services/ordersService');
+        const res = await ordersService.getOrderById(queryOrderId as string);
+        if (isMounted && res?.order) {
+          const { backendOrderToActiveOrder } = await import('@/lib/converters');
+          const order = backendOrderToActiveOrder(res.order);
+          setRealOrder(order);
+
+          const status = res.order.status;
+          if (status === 'NEW') setCurrentStep(1);
+          else if (status === 'ACCEPTED') setCurrentStep(2);
+          else if (status === 'PREPARING') setCurrentStep(3);
+          else if (status === 'READY') setCurrentStep(4);
+          else if (status === 'DELIVERED') setCurrentStep(5);
+        }
+      } catch (err) {
+        // Fallback silently if DB offline
+      }
+    }
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 8000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [queryOrderId]);
+
+  const activeDisplayOrder = realOrder || orders.find(o => o.id === queryOrderId || o.orderNumber === queryOrderId) || latestOrder;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

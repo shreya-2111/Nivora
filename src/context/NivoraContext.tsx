@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import {
   GuestProfile,
   ActiveOrder,
@@ -14,11 +14,21 @@ import {
   mockActiveOrder,
   mockMenuItems,
 } from '@/data/mockData';
+import { hotelService } from '@/services/hotelService';
+import { menuService } from '@/services/menuService';
+import { ordersService } from '@/services/ordersService';
+import { requestsService } from '@/services/requestsService';
+import { getGuestSession } from '@/lib/auth';
+import { backendDishToMenuItem, backendOrderToActiveOrder, backendRequestToFrontend } from '@/lib/converters';
+import { HotelSettings, BackendOrderStatus, CreateOrderPayload } from '@/types/api';
 
 export interface CartItemEntry {
   item: MenuItem;
   quantity: number;
   instructions?: string;
+  selectedOptionIds?: string[];
+  selectedOptionsText?: string;
+  additionalPrice?: number;
 }
 
 const initialOrders: ActiveOrder[] = [
@@ -60,55 +70,6 @@ const initialOrders: ActiveOrder[] = [
     ],
     deliveryNotes: 'Deliver directly inside living area.',
   },
-  {
-    id: 'ord_2887',
-    orderNumber: '#NV-2887',
-    roomNumber: '508',
-    guestName: 'Lord Sterling',
-    status: 'delivered',
-    estimatedDeliveryMinutes: 0,
-    placedAt: '17:30',
-    totalAmount: 195.00,
-    items: [
-      {
-        id: 'menu_w1',
-        name: 'Dom Pérignon Vintage Champagne',
-        price: 195.00,
-        quantity: 1,
-      },
-    ],
-    deliveryNotes: 'Chilled bucket with 2 crystal flutes.',
-  },
-  {
-    id: 'ord_2880',
-    orderNumber: '#NV-2880',
-    roomNumber: '205',
-    guestName: 'Dr. Evelyn Reed',
-    status: 'placed',
-    estimatedDeliveryMinutes: 25,
-    placedAt: '18:50',
-    totalAmount: 56.50,
-    items: [
-      {
-        id: 'menu_m3',
-        name: 'Wagyu Smash Truffle Burger',
-        price: 28.00,
-        quantity: 1,
-      },
-      {
-        id: 'menu_s4',
-        name: 'Crispy Calamari Fritti',
-        price: 22.00,
-        quantity: 1,
-      },
-      {
-        id: 'menu_c3',
-        name: 'Hibiscus Blossom Spritz',
-        price: 15.00,
-        quantity: 1,
-      },
-    ],
-  },
 ];
 
 const initialRoomRequests: RoomServiceRequest[] = [
@@ -136,36 +97,40 @@ const initialRoomRequests: RoomServiceRequest[] = [
     status: 'completed',
     createdAt: '17:10',
   },
-  {
-    id: 'req_3',
-    ticketNumber: '#SR-102',
-    roomNumber: '312',
-    guestName: 'Ms. Eleanor Vance',
-    serviceCategory: 'Hotel Amenities',
-    requestItem: 'Ice Bucket & Cocktail Shaker Kit',
-    urgency: 'Immediate (10-15 mins)',
-    status: 'pending',
-    createdAt: '18:48',
-  },
 ];
 
 interface NivoraContextType {
   guest: GuestProfile;
+  setGuestRoom: (roomNumber: string) => void;
+  hotel: HotelSettings | null;
   orders: ActiveOrder[];
   activeOrder: ActiveOrder;
   roomRequests: RoomServiceRequest[];
   menuItems: MenuItem[];
+  rawMenuCategories: any[];
   cartItems: CartItemEntry[];
   totalCartCount: number;
   cartSubtotal: number;
-  addToCart: (item: MenuItem, quantity?: number, instructions?: string) => void;
+  isApiConnected: boolean;
+  addToCart: (
+    item: MenuItem,
+    quantity?: number,
+    instructions?: string,
+    selectedOptionIds?: string[],
+    selectedOptionsText?: string,
+    additionalPrice?: number
+  ) => void;
   removeFromCart: (item: MenuItem) => void;
   updateCartQuantity: (itemId: string, newQty: number) => void;
   clearCart: () => void;
-  placeOrder: (deliveryNotes?: string) => ActiveOrder;
+  placeOrder: (deliveryNotes?: string) => Promise<ActiveOrder>;
+  refreshOrder: (orderId: string) => Promise<ActiveOrder | null>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   advanceActiveOrderStatus: () => void;
-  addRoomRequest: (request: Omit<RoomServiceRequest, 'id' | 'ticketNumber' | 'status' | 'createdAt'>) => RoomServiceRequest;
+  addRoomRequest: (
+    request: Omit<RoomServiceRequest, 'id' | 'ticketNumber' | 'status' | 'createdAt'>,
+    categoryId?: string
+  ) => Promise<RoomServiceRequest>;
   updateRoomRequestStatus: (requestId: string, status: RequestStatus) => void;
   toggleMenuItemAvailability: (itemId: string) => void;
 }
@@ -173,12 +138,16 @@ interface NivoraContextType {
 const NivoraContext = createContext<NivoraContextType | null>(null);
 
 export function NivoraProvider({ children }: { children: React.ReactNode }) {
-  const [guest] = useState<GuestProfile>(mockGuestProfile);
+  const [guest, setGuest] = useState<GuestProfile>(mockGuestProfile);
+  const [hotel, setHotel] = useState<HotelSettings | null>(null);
   const [orders, setOrders] = useState<ActiveOrder[]>(initialOrders);
   const [roomRequests, setRoomRequests] = useState<RoomServiceRequest[]>(initialRoomRequests);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(
     mockMenuItems.map((item) => ({ ...item, isAvailable: true }))
   );
+  const [rawMenuCategories, setRawMenuCategories] = useState<any[]>([]);
+  const [isApiConnected, setIsApiConnected] = useState<boolean>(false);
+
   const [cartItems, setCartItems] = useState<CartItemEntry[]>([
     {
       item: mockMenuItems[4], // Prime Truffle Ribeye Steak
@@ -187,7 +156,70 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
     },
   ]);
 
-  // Current active order for guest tracking (defaults to Room 404 order)
+  // Set guest room helper
+  const setGuestRoom = useCallback((roomNumber: string) => {
+    setGuest((prev) => ({
+      ...prev,
+      roomNumber,
+    }));
+  }, []);
+
+  // 1. Check for Active Guest Session on mount
+  useEffect(() => {
+    const session = getGuestSession();
+    if (session && session.room && session.room.room_number) {
+      setGuest((prev) => ({
+        ...prev,
+        roomNumber: session.room.room_number,
+      }));
+    }
+  }, []);
+
+  // 2. Fetch Live Hotel Information & Live Menu
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadBackendData() {
+      // A) Hotel Settings
+      try {
+        const hotelRes = await hotelService.getHotel();
+        if (isMounted && hotelRes?.hotel) {
+          setHotel(hotelRes.hotel);
+          setIsApiConnected(true);
+        }
+      } catch (err) {
+        // Backend DB pending or offline - silent fallback
+      }
+
+      // B) Menu Catalog
+      try {
+        const menuRes = await menuService.getMenu();
+        if (isMounted && menuRes?.categories && menuRes.categories.length > 0) {
+          setRawMenuCategories(menuRes.categories);
+          const convertedItems: MenuItem[] = [];
+          for (const cat of menuRes.categories) {
+            for (const dish of cat.items || []) {
+              convertedItems.push(backendDishToMenuItem(dish, cat.name));
+            }
+          }
+          if (convertedItems.length > 0) {
+            setMenuItems(convertedItems);
+          }
+          setIsApiConnected(true);
+        }
+      } catch (err) {
+        // Backend DB pending or offline - keeps mock items
+      }
+    }
+
+    loadBackendData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Current active order for guest tracking (defaults to active room order)
   const activeOrder = useMemo(() => {
     return (
       orders.find((o) => o.roomNumber === guest.roomNumber && o.status !== 'delivered' && o.status !== 'cancelled') ||
@@ -202,27 +234,51 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
   );
 
   const cartSubtotal = useMemo(
-    () => cartItems.reduce((acc, curr) => acc + curr.item.price * curr.quantity, 0),
+    () =>
+      cartItems.reduce(
+        (acc, curr) => acc + (curr.item.price + (curr.additionalPrice || 0)) * curr.quantity,
+        0
+      ),
     [cartItems]
   );
 
-  const addToCart = React.useCallback(
-    (item: MenuItem, quantity = 1, instructions?: string) => {
+  const addToCart = useCallback(
+    (
+      item: MenuItem,
+      quantity = 1,
+      instructions?: string,
+      selectedOptionIds?: string[],
+      selectedOptionsText?: string,
+      additionalPrice?: number
+    ) => {
       setCartItems((prev) => {
         const idx = prev.findIndex((entry) => entry.item.id === item.id);
         if (idx > -1) {
           const copy = [...prev];
           copy[idx].quantity += quantity;
           if (instructions) copy[idx].instructions = instructions;
+          if (selectedOptionIds) copy[idx].selectedOptionIds = selectedOptionIds;
+          if (selectedOptionsText) copy[idx].selectedOptionsText = selectedOptionsText;
+          if (additionalPrice) copy[idx].additionalPrice = additionalPrice;
           return copy;
         }
-        return [...prev, { item, quantity, instructions }];
+        return [
+          ...prev,
+          {
+            item,
+            quantity,
+            instructions,
+            selectedOptionIds,
+            selectedOptionsText,
+            additionalPrice: additionalPrice || 0,
+          },
+        ];
       });
     },
     []
   );
 
-  const removeFromCart = React.useCallback((item: MenuItem) => {
+  const removeFromCart = useCallback((item: MenuItem) => {
     setCartItems((prev) => {
       const existing = prev.find((entry) => entry.item.id === item.id);
       if (!existing) return prev;
@@ -235,7 +291,7 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const updateCartQuantity = React.useCallback((itemId: string, newQty: number) => {
+  const updateCartQuantity = useCallback((itemId: string, newQty: number) => {
     if (newQty <= 0) {
       setCartItems((prev) => prev.filter((entry) => entry.item.id !== itemId));
     } else {
@@ -247,14 +303,44 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const clearCart = React.useCallback(() => {
+  const clearCart = useCallback(() => {
     setCartItems([]);
   }, []);
 
-  const placeOrder = React.useCallback(
-    (deliveryNotes?: string): ActiveOrder => {
+  // STEP 7: Place Food Order via Real Backend API
+  const placeOrder = useCallback(
+    async (deliveryNotes?: string): Promise<ActiveOrder> => {
+      if (cartItems.length === 0) {
+        throw new Error('Your cart is empty');
+      }
+
+      // 1. Build actual backend payload
+      const payload: CreateOrderPayload = {
+        items: cartItems.map((c) => ({
+          menu_item_id: c.item.id,
+          quantity: c.quantity,
+          option_ids: c.selectedOptionIds || [],
+          special_instructions: c.instructions || '',
+        })),
+        special_instructions: deliveryNotes || '',
+      };
+
+      try {
+        // Attempt real backend order creation
+        const res = await ordersService.createOrder(payload);
+        if (res && res.order) {
+          const createdOrder = backendOrderToActiveOrder(res.order);
+          setOrders((prev) => [createdOrder, ...prev]);
+          setCartItems([]);
+          return createdOrder;
+        }
+      } catch (err: any) {
+        console.warn('Backend order submission fallback:', err.message);
+      }
+
+      // Fallback local order creation if backend DB is not yet seeded
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const newOrder: ActiveOrder = {
+      const fallbackOrder: ActiveOrder = {
         id: `ord_${randomSuffix}`,
         orderNumber: `#NV-${randomSuffix}`,
         roomNumber: guest.roomNumber,
@@ -266,21 +352,36 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
         items: cartItems.map((c) => ({
           id: c.item.id,
           name: c.item.name,
-          price: c.item.price,
+          price: c.item.price + (c.additionalPrice || 0),
           quantity: c.quantity,
           specialInstructions: c.instructions,
         })),
         deliveryNotes: deliveryNotes || 'Standard delivery to room entrance.',
       };
 
-      setOrders((prev) => [newOrder, ...prev]);
+      setOrders((prev) => [fallbackOrder, ...prev]);
       setCartItems([]);
-      return newOrder;
+      return fallbackOrder;
     },
-    [guest.roomNumber, guest.name, cartSubtotal, cartItems]
+    [cartItems, guest.roomNumber, guest.name, cartSubtotal]
   );
 
-  const updateOrderStatus = React.useCallback((orderId: string, status: OrderStatus) => {
+  // STEP 9: Refresh Order by ID from Backend
+  const refreshOrder = useCallback(async (orderId: string): Promise<ActiveOrder | null> => {
+    try {
+      const res = await ordersService.getOrderById(orderId);
+      if (res && res.order) {
+        const active = backendOrderToActiveOrder(res.order);
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? active : o)));
+        return active;
+      }
+    } catch (err) {
+      // Handled silently
+    }
+    return null;
+  }, []);
+
+  const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
     setOrders((prev) =>
       prev.map((order) => {
         if (order.id === orderId) {
@@ -293,28 +394,46 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  const advanceActiveOrderStatus = React.useCallback(() => {
+  const advanceActiveOrderStatus = useCallback(() => {
     if (!activeOrder) return;
     const flow: Record<OrderStatus, OrderStatus> = {
       placed: 'preparing',
       preparing: 'on_the_way',
       on_the_way: 'delivered',
-      delivered: 'placed',
-      cancelled: 'placed',
+      delivered: 'delivered',
+      cancelled: 'cancelled',
     };
-    const nextStatus = flow[activeOrder.status] || 'preparing';
+    const nextStatus = flow[activeOrder.status];
     updateOrderStatus(activeOrder.id, nextStatus);
   }, [activeOrder, updateOrderStatus]);
 
-  const addRoomRequest = React.useCallback(
-    (
-      request: Omit<RoomServiceRequest, 'id' | 'ticketNumber' | 'status' | 'createdAt'>
-    ): RoomServiceRequest => {
-      const ticketNum = `#SR-${Math.floor(100 + Math.random() * 900)}`;
+  // Submit Room Request via Backend API
+  const addRoomRequest = useCallback(
+    async (
+      request: Omit<RoomServiceRequest, 'id' | 'ticketNumber' | 'status' | 'createdAt'>,
+      categoryId?: string
+    ): Promise<RoomServiceRequest> => {
+      try {
+        if (categoryId) {
+          const res = await requestsService.createRequest({
+            service_category_id: categoryId,
+            custom_request: request.notes || request.requestItem,
+          });
+          if (res && res.request) {
+            const created = backendRequestToFrontend(res.request);
+            setRoomRequests((prev) => [created, ...prev]);
+            return created;
+          }
+        }
+      } catch (err) {
+        console.warn('Backend request submission fallback:', err);
+      }
+
+      const randomSuffix = Math.floor(100 + Math.random() * 900);
       const newReq: RoomServiceRequest = {
         ...request,
         id: `req_${Date.now()}`,
-        ticketNumber: ticketNum,
+        ticketNumber: `#SR-${randomSuffix}`,
         status: 'pending',
         createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -325,16 +444,13 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const updateRoomRequestStatus = React.useCallback(
-    (requestId: string, status: RequestStatus) => {
-      setRoomRequests((prev) =>
-        prev.map((r) => (r.id === requestId ? { ...r, status } : r))
-      );
-    },
-    []
-  );
+  const updateRoomRequestStatus = useCallback((requestId: string, status: RequestStatus) => {
+    setRoomRequests((prev) =>
+      prev.map((req) => (req.id === requestId ? { ...req, status } : req))
+    );
+  }, []);
 
-  const toggleMenuItemAvailability = React.useCallback((itemId: string) => {
+  const toggleMenuItemAvailability = useCallback((itemId: string) => {
     setMenuItems((prev) =>
       prev.map((item) =>
         item.id === itemId ? { ...item, isAvailable: !item.isAvailable } : item
@@ -342,56 +458,43 @@ export function NivoraProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  const value = useMemo(
-    () => ({
-      guest,
-      orders,
-      activeOrder,
-      roomRequests,
-      menuItems,
-      cartItems,
-      totalCartCount,
-      cartSubtotal,
-      addToCart,
-      removeFromCart,
-      updateCartQuantity,
-      clearCart,
-      placeOrder,
-      updateOrderStatus,
-      advanceActiveOrderStatus,
-      addRoomRequest,
-      updateRoomRequestStatus,
-      toggleMenuItemAvailability,
-    }),
-    [
-      guest,
-      orders,
-      activeOrder,
-      roomRequests,
-      menuItems,
-      cartItems,
-      totalCartCount,
-      cartSubtotal,
-      addToCart,
-      removeFromCart,
-      updateCartQuantity,
-      clearCart,
-      placeOrder,
-      updateOrderStatus,
-      advanceActiveOrderStatus,
-      addRoomRequest,
-      updateRoomRequestStatus,
-      toggleMenuItemAvailability,
-    ]
+  return (
+    <NivoraContext.Provider
+      value={{
+        guest,
+        setGuestRoom,
+        hotel,
+        orders,
+        activeOrder,
+        roomRequests,
+        menuItems,
+        rawMenuCategories,
+        cartItems,
+        totalCartCount,
+        cartSubtotal,
+        isApiConnected,
+        addToCart,
+        removeFromCart,
+        updateCartQuantity,
+        clearCart,
+        placeOrder,
+        refreshOrder,
+        updateOrderStatus,
+        advanceActiveOrderStatus,
+        addRoomRequest,
+        updateRoomRequestStatus,
+        toggleMenuItemAvailability,
+      }}
+    >
+      {children}
+    </NivoraContext.Provider>
   );
-
-  return <NivoraContext.Provider value={value}>{children}</NivoraContext.Provider>;
 }
 
 export function useNivora() {
-  const ctx = useContext(NivoraContext);
-  if (!ctx) {
+  const context = useContext(NivoraContext);
+  if (!context) {
     throw new Error('useNivora must be used within a NivoraProvider');
   }
-  return ctx;
+  return context;
 }

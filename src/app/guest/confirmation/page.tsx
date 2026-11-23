@@ -86,9 +86,28 @@ function OrderConfirmationContent() {
   const queryRoom = searchParams.get('room');
   const roomNumber = queryRoom || guest?.roomNumber || '{room_number}';
   const queryOrderId = searchParams.get('id');
+  const queryOrderNumber = searchParams.get('orderNumber');
+
+  const [realOrder, setRealOrder] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (queryOrderId) {
+      import('@/services/ordersService').then(({ ordersService }) => {
+        ordersService.getOrderById(queryOrderId).then((res) => {
+          if (res?.order) {
+            import('@/lib/converters').then(({ backendOrderToActiveOrder }) => {
+              setRealOrder(backendOrderToActiveOrder(res.order));
+            });
+          }
+        }).catch(() => {});
+      });
+    }
+  }, [queryOrderId]);
 
   const latestOrder = orders[0] || activeOrder;
-  const orderId = queryOrderId || latestOrder?.orderNumber || '{order_id}';
+  const activeDisplayOrder = realOrder || orders.find(o => o.id === queryOrderId || o.orderNumber === queryOrderNumber) || latestOrder;
+  const orderId = queryOrderNumber || queryOrderId || activeDisplayOrder?.orderNumber || latestOrder?.orderNumber || '{order_id}';
+  const orderTotal = activeDisplayOrder?.totalAmount || 2380;
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isServicesModalOpen, setIsServicesModalOpen] = useState(false);
@@ -409,7 +428,7 @@ function OrderConfirmationContent() {
                 ₹
               </span>
               <span className="font-serif text-2xl sm:text-3xl font-bold text-[#705535] leading-none">
-                {isLiteralMockup ? '{order_total}' : '2,380'}
+                {isLiteralMockup ? '{order_total}' : Math.round(orderTotal).toLocaleString('en-IN')}
               </span>
             </div>
           </div>
@@ -427,7 +446,7 @@ function OrderConfirmationContent() {
         <div className="pt-2 space-y-3 text-center">
           {/* Bronze View Order Status Button */}
           <Link
-            href="/guest/orders"
+            href={`/guest/orders?id=${encodeURIComponent(queryOrderId || activeDisplayOrder?.id || '')}`}
             className="w-full py-4 px-6 rounded-2xl bg-[#705535] hover:bg-[#5C452A] text-white font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition active:scale-98"
           >
             <span>View Order Status</span>

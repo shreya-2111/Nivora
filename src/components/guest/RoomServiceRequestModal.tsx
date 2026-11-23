@@ -143,12 +143,12 @@ function RoomServiceRequestContent({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     const finalItem = customItem.trim() || selectedPreset;
-    const newReq = addRoomRequest({
+    const newReq = await addRoomRequest({
       roomNumber: guest.roomNumber,
       guestName: guest.name,
       serviceCategory: category,

@@ -42,9 +42,13 @@ export function CartDrawer({
   const taxInr = Math.round(subtotalInr * 0.05); // 5% GST
   const totalInr = subtotalInr + taxInr;
 
-  const handlePlaceOrder = () => {
-    const created = placeOrder(deliveryNote);
-    setConfirmedOrderNumber(created.orderNumber);
+  const handlePlaceOrder = async () => {
+    try {
+      const created = await placeOrder(deliveryNote);
+      setConfirmedOrderNumber(created.orderNumber);
+    } catch (err) {
+      console.error('Failed to place order:', err);
+    }
   };
 
   const handleResetAndClose = () => {
