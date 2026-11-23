@@ -3,7 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export function proxy(req: NextRequest) {
-  const allowed = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const configured = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const allowed = configured.length > 0 ? configured : (process.env.NODE_ENV !== 'production' ? ['http://localhost:3000'] : []);
   const origin = req.headers.get('origin');
   const headers: Record<string, string> = {};
 
