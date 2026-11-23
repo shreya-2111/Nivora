@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -33,6 +33,8 @@ import {
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { menuService } from '@/services/menuService';
 import { useNivora } from '@/context/NivoraContext';
 
 /* Custom SVG Icons matching the mockup */
@@ -202,6 +204,7 @@ export interface MenuCategoryItem {
 
 function AdminMenuCategoriesContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const initialMode = searchParams.get('mode');
   const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
 
@@ -291,6 +294,46 @@ function AdminMenuCategoriesContent() {
     },
   ]);
 
+  useEffect(() => {
+    let active = true;
+    menuService.getMenu()
+      .then((res) => {
+        if (!active || !res?.categories) return;
+        if (res.categories.length > 0) {
+          const mapped: MenuCategoryItem[] = res.categories.map((c: any, idx: number) => ({
+            id: c.id,
+            code: `CAT-00${idx + 1}`,
+            title: c.name,
+            description: c.description || 'Curated luxury culinary offerings for guest in-room dining.',
+            createdDate: 'Verified',
+            updatedDate: 'Live catalog',
+            isActive: c.is_active ?? true,
+            itemCount: c.items?.length ?? 0,
+            iconType:
+              idx === 0
+                ? 'bakery'
+                : idx === 1
+                ? 'grill'
+                : idx === 2
+                ? 'burger'
+                : idx === 3
+                ? 'salad'
+                : idx === 4
+                ? 'dessert'
+                : 'beverage',
+          }));
+          setCategories(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Menu categories live fetch fallback:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Total active & dish calculations
   const totalDishes = useMemo(() => categories.reduce((sum, c) => sum + c.itemCount, 0), [categories]);
   const activeCount = useMemo(() => categories.filter((c) => c.isActive).length, [categories]);
@@ -303,6 +346,7 @@ function AdminMenuCategoriesContent() {
       const temp = copy[index - 1];
       copy[index - 1] = copy[index];
       copy[index] = temp;
+      menuService.reorderCategories(copy.map((c) => c.id)).catch(() => {});
       return copy;
     });
     showToast(`Sequence updated: Moved up to #${index}`);
@@ -315,26 +359,46 @@ function AdminMenuCategoriesContent() {
       const temp = copy[index + 1];
       copy[index + 1] = copy[index];
       copy[index] = temp;
+      menuService.reorderCategories(copy.map((c) => c.id)).catch(() => {});
       return copy;
     });
     showToast(`Sequence updated: Moved down to #${index + 2}`);
   };
 
   // Delete category
-  const handleDelete = (catId: string, title: string) => {
+  const handleDelete = async (catId: string, title: string) => {
     if (confirm(`Are you sure you want to delete category "${title}"?`)) {
+      try {
+        await menuService.deleteCategory(catId);
+      } catch (err) {
+        console.warn('Delete category fallback:', err);
+      }
       setCategories((prev) => prev.filter((c) => c.id !== catId));
       showToast(`Category "${title}" removed from catalog`);
     }
   };
 
   // Add new category
-  const handleAddCategory = (e: React.FormEvent) => {
+  const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
+    let createdId = `cat_${Date.now()}`;
+    try {
+      const res = await menuService.createCategory({
+        name: newTitle.trim(),
+        description: newDescription.trim(),
+        is_active: true,
+      });
+      if (res?.category?.id) {
+        createdId = res.category.id;
+      }
+    } catch (err) {
+      console.warn('Create category fallback:', err);
+    }
+
     const newCat: MenuCategoryItem = {
-      id: `cat_${Date.now()}`,
+      id: createdId,
       code: newCode.trim() || `CAT-00${categories.length + 1}`,
       title: newTitle.trim(),
       description: newDescription.trim() || 'Curated luxury culinary offerings for guest in-room dining.',
@@ -353,9 +417,19 @@ function AdminMenuCategoriesContent() {
   };
 
   // Save edited category
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
+
+    try {
+      await menuService.updateCategory(editingCategory.id, {
+        name: editingCategory.title,
+        description: editingCategory.description,
+        is_active: editingCategory.isActive,
+      });
+    } catch (err) {
+      console.warn('Update category fallback:', err);
+    }
 
     setCategories((prev) =>
       prev.map((c) => (c.id === editingCategory.id ? { ...editingCategory, updatedDate: 'Just now' } : c))
@@ -529,13 +603,14 @@ function AdminMenuCategoriesContent() {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

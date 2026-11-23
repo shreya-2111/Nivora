@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -36,6 +36,9 @@ import {
   Printer,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { requestsService } from '@/services/requestsService';
+import { BackendRequestStatus } from '@/types/api';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -168,6 +171,7 @@ export interface RoomRequestItem {
 
 function AdminRoomRequestsContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const { guest } = useNivora();
 
   // Template toggle mode: {var} vs live
@@ -300,6 +304,42 @@ function AdminRoomRequestsContent() {
   );
 
   const [requestsList, setRequestsList] = useState<RoomRequestItem[]>(initialRequests);
+
+  useEffect(() => {
+    let active = true;
+    requestsService.getRequests()
+      .then((res) => {
+        if (!active || !res?.requests) return;
+        if (res.requests.length > 0) {
+          const mapped: RoomRequestItem[] = res.requests.map((r) => {
+            const catName = (r.service_category_name || 'Housekeeping') as RoomRequestItem['serviceCategory'];
+            return {
+              id: r.request_number || `#NV-${r.id.slice(0, 6)}`,
+              roomTemplate: '{ ROOM :Number }',
+              roomLive: `ROOM ${r.room_number || '104'}`,
+              wing: 'Villa Del Mar',
+              service: catName,
+              serviceCategory: catName,
+              guestNote: r.custom_request ? `"${r.custom_request}"` : 'Guest Requisition logged.',
+              subTag: r.status === 'NEW' ? 'HIGH PRIORITY' : undefined,
+              subTagType: r.status === 'NEW' ? 'priority' : 'info',
+              status: (r.status === 'IN_PROGRESS' ? 'IN PROGRESS' : r.status) as RequestStatusCategory,
+              timeLogged: new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              timeAgo: 'recently',
+              assignedStaff: 'On-Duty Dispatch',
+            };
+          });
+          setRequestsList(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Requests live fetch fallback:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Filter requests
   const filteredRequests = useMemo(() => {
@@ -504,13 +544,14 @@ function AdminRoomRequestsContent() {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

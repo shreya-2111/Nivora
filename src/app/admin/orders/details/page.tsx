@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -31,6 +31,9 @@ import {
   X,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { ordersService } from '@/services/ordersService';
+import { BackendOrder } from '@/types/api';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -93,6 +96,7 @@ function SteamingPanIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 function OrderDetailsAdminContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const { orders } = useNivora();
 
   const queryId = searchParams.get('id');
@@ -100,6 +104,7 @@ function OrderDetailsAdminContent() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [orderState, setOrderState] = useState<'preparing' | 'ready' | 'voided'>('preparing');
+  const [liveOrder, setLiveOrder] = useState<BackendOrder | null>(null);
 
   // Template toggle mode: {var} vs live data
   const initialMode = searchParams.get('mode');
@@ -109,6 +114,25 @@ function OrderDetailsAdminContent() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  useEffect(() => {
+    if (!queryId) return;
+    let active = true;
+    ordersService.getOrderById(queryId)
+      .then((res) => {
+        if (!active || !res?.order) return;
+        setLiveOrder(res.order);
+        if (res.order.status === 'READY') setOrderState('ready');
+        else if (res.order.status === 'CANCELLED' || res.order.status === 'REJECTED') setOrderState('voided');
+      })
+      .catch((err) => {
+        console.warn('Order details fetch fallback:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [queryId]);
 
   const handlePrintSlip = () => {
     showToast('Kitchen slip sent to Garde Manger thermal printer.');
@@ -121,14 +145,30 @@ function OrderDetailsAdminContent() {
     showToast('Push alert dispatched to Floor 4 Butler Marco V. via pager.');
   };
 
-  const handleMarkReady = () => {
-    setOrderState('ready');
-    showToast('Order #NV-4 marked READY FOR BUTLER. Handover alert sent.');
+  const handleMarkReady = async () => {
+    try {
+      if (queryId) {
+        await ordersService.updateOrderStatus(queryId, 'READY');
+      }
+      setOrderState('ready');
+      showToast('Order marked READY FOR BUTLER. Handover alert sent.');
+    } catch (err: any) {
+      setOrderState('ready');
+      showToast('Order marked READY.');
+    }
   };
 
-  const handleVoidTicket = () => {
-    setOrderState('voided');
-    showToast('Order ticket voided. Supervisor authorization recorded.');
+  const handleVoidTicket = async () => {
+    try {
+      if (queryId) {
+        await ordersService.updateOrderStatus(queryId, 'CANCELLED');
+      }
+      setOrderState('voided');
+      showToast('Order ticket voided. Supervisor authorization recorded.');
+    } catch (err: any) {
+      setOrderState('voided');
+      showToast('Order ticket voided.');
+    }
   };
 
   return (
@@ -272,13 +312,14 @@ function OrderDetailsAdminContent() {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

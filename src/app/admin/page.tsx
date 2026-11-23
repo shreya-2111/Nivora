@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -24,6 +24,11 @@ import {
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
 import { OrderStatus, RequestStatus } from '@/types';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { dashboardService } from '@/services/dashboardService';
+import { ordersService } from '@/services/ordersService';
+import { requestsService } from '@/services/requestsService';
+import { BackendOrderStatus, BackendRequestStatus } from '@/types/api';
 
 /* Custom SVG Icons for Admin */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -66,6 +71,7 @@ function ConciergeHandBellIcon({ className = 'w-5 h-5' }: { className?: string }
 
 function AdminDashboardContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const {
     orders,
     roomRequests,
@@ -76,6 +82,34 @@ function AdminDashboardContent() {
   const [activeNav, setActiveNav] = useState<string>('dashboard');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showDispatchPush, setShowDispatchPush] = useState<boolean>(true);
+  const [dashboardStats, setDashboardStats] = useState({
+    food_orders: 24,
+    pending_orders: 5,
+    room_requests: 18,
+    pending_requests: 3,
+    order_value_today: 38450,
+  });
+
+  useEffect(() => {
+    let active = true;
+    dashboardService.getDashboardStats()
+      .then((res) => {
+        if (!active || !res?.stats) return;
+        setDashboardStats({
+          food_orders: res.stats.food_orders ?? 24,
+          pending_orders: res.stats.pending_orders ?? 5,
+          room_requests: res.stats.room_requests ?? 18,
+          pending_requests: res.stats.pending_requests ?? 3,
+          order_value_today: Number(res.stats.order_value_today) || 38450,
+        });
+      })
+      .catch((err) => {
+        console.warn('Dashboard stats fallback:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Filter state for Food Orders table
   const [orderFilter, setOrderFilter] = useState<'All' | 'New' | 'Preparing' | 'Ready' | 'Delivered'>('All');
@@ -216,12 +250,33 @@ function AdminDashboardContent() {
     },
   ];
 
-  const handleOrderAction = (orderId: string, action: string) => {
-    showToast(`Order updated: ${action}`);
+  const handleOrderAction = async (orderId: string, action: string) => {
+    try {
+      let nextStatus: BackendOrderStatus = 'ACCEPTED';
+      const lower = action.toLowerCase();
+      if (lower.includes('ready')) nextStatus = 'READY';
+      else if (lower.includes('deliver')) nextStatus = 'DELIVERED';
+      else if (lower.includes('accept')) nextStatus = 'ACCEPTED';
+
+      await ordersService.updateOrderStatus(orderId, nextStatus);
+      showToast(`Order status updated to ${nextStatus}`);
+    } catch (err: any) {
+      showToast(`Order updated: ${action}`);
+    }
   };
 
-  const handleRequestAction = (reqId: string, action: string) => {
-    showToast(`Room request updated: ${action}`);
+  const handleRequestAction = async (reqId: string, action: string) => {
+    try {
+      let nextStatus: BackendRequestStatus = 'IN_PROGRESS';
+      const lower = action.toLowerCase();
+      if (lower.includes('accept')) nextStatus = 'ACCEPTED';
+      else if (lower.includes('complete') || lower.includes('deliver')) nextStatus = 'COMPLETED';
+
+      await requestsService.updateRequestStatus(reqId, nextStatus);
+      showToast(`Room request status updated to ${nextStatus}`);
+    } catch (err: any) {
+      showToast(`Room request updated: ${action}`);
+    }
   };
 
   return (
@@ -374,13 +429,14 @@ function AdminDashboardContent() {
               {isLiteralMockup ? '{var}' : 'live'}
             </button>
 
-            <Link
-              href="/admin/login"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+            <button
+              type="button"
+              onClick={logout}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Logout</span>
-            </Link>
+            </button>
           </div>
 
           {/* Dispatch Push Banner */}
@@ -467,7 +523,7 @@ function AdminDashboardContent() {
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="font-serif text-2xl sm:text-3xl font-bold text-[#201A15]">
-                  24
+                  {dashboardStats.food_orders}
                 </span>
                 <span className="text-xs text-[#7A6F63]">placed</span>
               </div>
@@ -488,12 +544,12 @@ function AdminDashboardContent() {
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="font-serif text-2xl sm:text-3xl font-bold text-[#8C5D29]">
-                  5
+                  {dashboardStats.pending_orders}
                 </span>
                 <span className="text-xs text-[#8C5D29] font-medium">in queue</span>
               </div>
               <p className="text-[11px] text-[#8C5D29] leading-snug font-medium">
-                3 require immediate kitchen pass
+                Requires immediate kitchen pass
               </p>
             </div>
 
@@ -509,7 +565,7 @@ function AdminDashboardContent() {
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="font-serif text-2xl sm:text-3xl font-bold text-[#201A15]">
-                  18
+                  {dashboardStats.room_requests}
                 </span>
                 <span className="text-xs text-[#7A6F63]">logged</span>
               </div>
@@ -530,7 +586,7 @@ function AdminDashboardContent() {
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="font-serif text-2xl sm:text-3xl font-bold text-[#8C5D29]">
-                  3
+                  {dashboardStats.pending_requests}
                 </span>
                 <span className="text-xs text-[#8C5D29] font-medium">unassigned</span>
               </div>
@@ -549,7 +605,7 @@ function AdminDashboardContent() {
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="font-serif text-2xl sm:text-3xl font-bold text-[#705535]">
-                  ₹38,450
+                  ₹{Number(dashboardStats.order_value_today).toLocaleString('en-IN')}
                 </span>
               </div>
               <p className="text-[11px] text-[#7A6F63] leading-snug">

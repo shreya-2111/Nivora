@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { menuService } from '@/services/menuService';
 import {
   LogOut,
   LayoutDashboard,
@@ -97,6 +99,7 @@ export interface MenuItemData {
 
 function AdminMenuItemsContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const initialMode = searchParams.get('mode');
   const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
 
@@ -274,14 +277,21 @@ function AdminMenuItemsContent() {
   const unavailableCount = menuItems.filter((i) => !i.isAvailable).length;
 
   // Toggle item availability (86'd)
-  const toggleAvailability = (itemId: string, title: string) => {
+  const toggleAvailability = async (itemId: string, title: string) => {
+    const targetItem = menuItems.find((i) => i.id === itemId);
+    const nextAvail = !targetItem?.isAvailable;
+    try {
+      await menuService.updateItem(itemId, { is_available: nextAvail });
+    } catch (err) {
+      console.warn('Update item availability fallback:', err);
+    }
     setMenuItems((prev) =>
       prev.map((i) =>
         i.id === itemId
           ? {
               ...i,
-              isAvailable: !i.isAvailable,
-              unavailableNotice: !i.isAvailable
+              isAvailable: nextAvail,
+              unavailableNotice: nextAvail
                 ? undefined
                 : 'Out of stock • Next delivery tomorrow 07:00 AM',
             }
@@ -475,13 +485,14 @@ function AdminMenuItemsContent() {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

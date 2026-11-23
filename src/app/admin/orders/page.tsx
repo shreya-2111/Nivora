@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   LogOut,
   LayoutDashboard,
@@ -30,6 +30,9 @@ import {
   FileText,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { ordersService } from '@/services/ordersService';
+import { BackendOrder, BackendOrderStatus } from '@/types/api';
 
 /* Custom SVG Icons for Admin */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -71,13 +74,16 @@ function ConciergeHandBellIcon({ className = 'w-5 h-5' }: { className?: string }
 }
 
 function AdminOrdersContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const { orders } = useNivora();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'All' | 'New' | 'Preparing' | 'Ready' | 'Delivered'>('All');
   const [showNewOrderBanner, setShowNewOrderBanner] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [liveOrders, setLiveOrders] = useState<any[]>([]);
 
   // Template toggle mode: {var} vs live data
   const initialMode = searchParams.get('mode');
@@ -87,6 +93,47 @@ function AdminOrdersContent() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  useEffect(() => {
+    let active = true;
+    ordersService.getOrders()
+      .then((res) => {
+        if (!active || !res?.orders) return;
+        if (res.orders.length > 0) {
+          const mapped = res.orders.map((o) => ({
+            id: o.order_number || `#NV-${o.id.slice(0, 6)}`,
+            realId: o.id,
+            room: `Room ${o.room_number || '104'}`,
+            items: o.items?.map((i) => `${i.quantity}x ${i.item_name_snapshot}`).join(', ') || 'Chef Curated Selection',
+            note: o.special_instructions || '',
+            total: Number(o.total).toLocaleString('en-IN'),
+            billingNote: 'Charge to Room',
+            status: o.status,
+            statusCategory:
+              o.status === 'NEW'
+                ? 'New'
+                : o.status === 'PREPARING'
+                ? 'Preparing'
+                : o.status === 'READY'
+                ? 'Ready'
+                : o.status === 'DELIVERED'
+                ? 'Delivered'
+                : 'All',
+            statusBadgeType: o.status.toLowerCase(),
+            time: new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timeAgo: 'recently',
+          }));
+          setLiveOrders(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Orders live fetch fallback:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Mockup orders list matching screenshot
   const allMockupOrders = useMemo(
@@ -178,8 +225,12 @@ function AdminOrdersContent() {
     []
   );
 
+  const activeOrdersList = useMemo(() => {
+    return (liveOrders.length > 0 && !isLiteralMockup) ? liveOrders : allMockupOrders;
+  }, [liveOrders, isLiteralMockup, allMockupOrders]);
+
   const filteredOrders = useMemo(() => {
-    return allMockupOrders.filter((ord) => {
+    return activeOrdersList.filter((ord) => {
       if (activeFilter !== 'All' && ord.statusCategory !== activeFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -191,7 +242,7 @@ function AdminOrdersContent() {
       }
       return true;
     });
-  }, [allMockupOrders, activeFilter, searchQuery]);
+  }, [activeOrdersList, activeFilter, searchQuery]);
 
   return (
     <div className="min-h-screen w-full bg-[#FAF8F5] text-[#221B14] selection:bg-[#705535]/20 selection:text-[#221B14] flex flex-col justify-between antialiased">
@@ -331,13 +382,14 @@ function AdminOrdersContent() {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

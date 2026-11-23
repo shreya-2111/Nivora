@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -32,6 +32,8 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { qrService } from '@/services/qrService';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -90,6 +92,7 @@ export interface RoomTokenRecord {
 
 function AdminQRContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const initialMode = searchParams.get('mode');
   const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
 
@@ -229,6 +232,40 @@ function AdminQRContent() {
       plaqueSize: '105 × 148 mm (A6)',
     },
   ]);
+
+  useEffect(() => {
+    let active = true;
+    qrService.getQrCodes(true)
+      .then((res) => {
+        if (!active || !res?.qr_codes) return;
+        if (res.qr_codes.length > 0) {
+          const mapped: RoomTokenRecord[] = res.qr_codes.map((q: any, idx: number) => ({
+            id: q.id,
+            roomNumberTemplate: '{ ROOM :Number }',
+            roomNumberLive: `Room ${q.room_number}`,
+            suiteNameTemplate: 'Villa Del Mar Suite',
+            suiteNameLive: 'Villa Del Mar Suite',
+            wing: 'West Pavilion',
+            floor: `Floor ${q.floor || 1}`,
+            tokenCode: `NV-QR-${q.token.slice(0, 8).toUpperCase()}`,
+            qrHash: `sha256-${q.token.slice(0, 10)}...`,
+            scansCount: 20 + idx * 4,
+            lastScanned: 'Scanned today',
+            status: q.is_active ? 'ACTIVE' : 'INACTIVE',
+            plaqueSize: '105 × 148 mm (A6)',
+          }));
+          setTokens(mapped);
+          if (mapped[0]) setSelectedRoomId(mapped[0].id);
+        }
+      })
+      .catch((err) => {
+        console.warn('QR tokens live fetch fallback:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Selected room object
   const currentSelectedRoom = useMemo(() => {
@@ -466,13 +503,14 @@ function AdminQRContent() {
             </div>
 
             <div className="flex items-center gap-4">
-              <Link
-                href="/admin/login"
-                className="flex items-center gap-1.5 text-xs font-medium text-[#7A6F63] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="flex items-center gap-1.5 text-xs font-medium text-[#7A6F63] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

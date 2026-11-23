@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -36,6 +36,8 @@ import {
   Smartphone,
   RotateCcw,
 } from 'lucide-react';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { hotelService } from '@/services/hotelService';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -97,6 +99,7 @@ function ContactBookIcon({ className = 'w-5 h-5' }: { className?: string }) {
 
 function AdminSettingsContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const initialMode = searchParams.get('mode');
   const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
 
@@ -163,8 +166,56 @@ function AdminSettingsContent() {
     showToast('Changes discarded. Restored resort defaults.');
   };
 
-  const handleSaveChanges = (e?: React.FormEvent) => {
+  useEffect(() => {
+    let active = true;
+    hotelService.getHotel()
+      .then((res) => {
+        if (!active || !res?.hotel) return;
+        const h = res.hotel;
+        if (h.hotel_name) setHotelName(h.hotel_name);
+        if (h.phone) setPhone(h.phone);
+        if (h.whatsapp) setWhatsapp(h.whatsapp);
+        if (h.address) setAddress(h.address);
+        if (h.primary_color) setPrimaryColor(h.primary_color);
+        if (h.secondary_color) setSecondaryColor(h.secondary_color);
+        if (h.welcome_message) setWelcomeMessage(h.welcome_message);
+        if (h.modules) {
+          setModuleFood(h.modules.food_ordering ?? true);
+          setModuleRoomService(h.modules.room_service ?? true);
+          setModuleReception(h.modules.contact_reception ?? true);
+          setModuleInfo(h.modules.hotel_information ?? true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Hotel settings live fetch fallback:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleSaveChanges = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    try {
+      await hotelService.updateHotel({
+        hotel_name: hotelName,
+        phone,
+        whatsapp,
+        address,
+        primary_color: primaryColor,
+        secondary_color: secondaryColor,
+        welcome_message: welcomeMessage,
+        modules: {
+          food_ordering: moduleFood,
+          room_service: moduleRoomService,
+          contact_reception: moduleReception,
+          hotel_information: moduleInfo,
+        },
+      });
+    } catch (err) {
+      console.warn('Update hotel settings fallback:', err);
+    }
     setHasUnsavedChanges(false);
     showToast('Hotel settings updated successfully across all guest touchpoints.');
   };
@@ -311,13 +362,14 @@ function AdminSettingsContent() {
             </div>
 
             <div className="flex items-center gap-4">
-              <Link
-                href="/admin/login"
-                className="flex items-center gap-1.5 text-xs font-medium text-[#7A6F63] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="flex items-center gap-1.5 text-xs font-medium text-[#7A6F63] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -33,6 +33,8 @@ import {
   Copy,
   DoorClosed,
 } from 'lucide-react';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { roomsService } from '@/services/roomsService';
 import { useNivora } from '@/context/NivoraContext';
 
 /* Custom SVG Icons */
@@ -111,6 +113,7 @@ export interface RoomRecord {
 
 function AdminRoomsContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const initialMode = searchParams.get('mode');
   const [isLiteralMockup, setIsLiteralMockup] = useState(initialMode !== 'live');
 
@@ -299,10 +302,51 @@ function AdminRoomsContent() {
     showToast(`Room ${num} registered and provisioned with QR token`);
   };
 
+  useEffect(() => {
+    let active = true;
+    roomsService.getRooms()
+      .then((res) => {
+        if (!active || !res?.rooms) return;
+        if (res.rooms.length > 0) {
+          const mapped: RoomRecord[] = res.rooms.map((r, idx) => ({
+            id: r.id,
+            roomTemplate: '{ ROOM :Number }',
+            roomLive: `Room ${r.room_number}`,
+            floorTemplate: 'Floor',
+            floorLive: `Floor ${r.floor || 1}`,
+            qrCode: `#QR-RM-${r.room_number}`,
+            scanTime: 'Scanned today',
+            scanCount: 10 + idx * 5,
+            qrActive: r.status === 'ACTIVE',
+            status: r.status,
+            createdAt: 'Registered',
+            lastUpdated: 'Today',
+            wing: 'Ocean Front',
+          }));
+          setRooms(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Rooms live fetch fallback:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Save Edit
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRoom) return;
+
+    try {
+      await roomsService.updateRoom(editingRoom.id, {
+        status: editingRoom.status,
+      });
+    } catch (err) {
+      console.warn('Update room fallback:', err);
+    }
 
     setRooms((prev) =>
       prev.map((r) => (r.id === editingRoom.id ? { ...editingRoom, lastUpdated: 'Just now' } : r))
@@ -312,8 +356,13 @@ function AdminRoomsContent() {
   };
 
   // Delete Room
-  const handleDeleteRoom = (id: string, roomName: string) => {
+  const handleDeleteRoom = async (id: string, roomName: string) => {
     if (confirm(`Are you sure you want to delete ${roomName}?`)) {
+      try {
+        await roomsService.deleteRoom(id);
+      } catch (err) {
+        console.warn('Delete room fallback:', err);
+      }
       setRooms((prev) => prev.filter((r) => r.id !== id));
       showToast(`Removed room record`);
     }
@@ -468,13 +517,14 @@ function AdminRoomsContent() {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

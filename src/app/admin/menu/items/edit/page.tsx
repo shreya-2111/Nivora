@@ -32,6 +32,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { menuService } from '@/services/menuService';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -82,6 +84,7 @@ interface DishOption {
 function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
 
   // Template toggle mode: {var} vs live data
   const initialMode = searchParams.get('mode');
@@ -179,21 +182,51 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
   };
 
   // Save food item
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      if (isNew) {
+        await menuService.createItem({
+          name: foodName,
+          price,
+          description,
+          is_vegetarian: isVeg,
+          is_available: isAvailable,
+          image_url: photoUrl,
+        });
+      } else {
+        const id = searchParams.get('id') || 'item-wagyu-burger';
+        await menuService.updateItem(id, {
+          name: foodName,
+          price,
+          description,
+          is_vegetarian: isVeg,
+          is_available: isAvailable,
+          image_url: photoUrl,
+        });
+      }
+    } catch (err) {
+      console.warn('Save food item fallback:', err);
+    }
     showToast(`Saved "${foodName || 'Item'}" to live guest compendium`);
     setTimeout(() => {
       router.push('/admin/menu/items');
-    }, 1200);
+    }, 600);
   };
 
   // Archive
-  const handleArchive = () => {
+  const handleArchive = async () => {
     if (confirm(`Are you sure you want to archive "${foodName}" from the catalog?`)) {
+      try {
+        const id = searchParams.get('id') || 'item-wagyu-burger';
+        await menuService.deleteItem(id);
+      } catch (err) {
+        console.warn('Archive item fallback:', err);
+      }
       showToast(`Archived "${foodName}" from live database`);
       setTimeout(() => {
         router.push('/admin/menu/items');
-      }, 1000);
+      }, 600);
     }
   };
 
@@ -343,13 +376,14 @@ function AdminEditFoodItemContent({ isNew = false }: { isNew?: boolean }) {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 

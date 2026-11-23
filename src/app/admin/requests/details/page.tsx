@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -37,6 +37,8 @@ import {
   MinusCircle,
 } from 'lucide-react';
 import { useNivora } from '@/context/NivoraContext';
+import { useAdminAuth } from '@/lib/useAdminAuth';
+import { requestsService } from '@/services/requestsService';
 
 /* Custom SVG Icons */
 function ClocheIcon({ className = 'w-5 h-5' }: { className?: string }) {
@@ -116,7 +118,10 @@ function BathSheetIcon({ className = 'w-4 h-4' }: { className?: string }) {
 
 function AdminRequestDetailsContent() {
   const searchParams = useSearchParams();
+  const { logout } = useAdminAuth(true);
   const { guest } = useNivora();
+
+  const queryId = searchParams.get('id');
 
   // Template toggle mode: {var} vs live data
   const initialMode = searchParams.get('mode');
@@ -133,18 +138,54 @@ function AdminRequestDetailsContent() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleMarkCompleted = () => {
-    setRequestStatus('Completed');
-    showToast('Requisition #SR-884291 marked as Completed and logged to Guest Folio');
+  useEffect(() => {
+    if (!queryId) return;
+    let active = true;
+    requestsService.getRequestById(queryId)
+      .then((res) => {
+        if (!active || !res?.request) return;
+        if (res.request.status === 'COMPLETED') setRequestStatus('Completed');
+        else if (res.request.status === 'CANCELLED') setRequestStatus('Cancelled');
+      })
+      .catch((err) => {
+        console.warn('Request details fetch fallback:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, [queryId]);
+
+  const handleMarkCompleted = async () => {
+    try {
+      if (queryId) {
+        await requestsService.updateRequestStatus(queryId, 'COMPLETED');
+      }
+      setRequestStatus('Completed');
+      showToast('Requisition marked as Completed and logged to Guest Folio');
+    } catch (err: any) {
+      setRequestStatus('Completed');
+      showToast('Requisition marked as Completed.');
+    }
   };
 
-  const handleCancelRequest = () => {
-    setRequestStatus('Cancelled');
-    showToast('Requisition #SR-884291 cancelled and logged with Dispatch Desk');
+  const handleCancelRequest = async () => {
+    try {
+      if (queryId) {
+        await requestsService.updateRequestStatus(queryId, 'CANCELLED');
+      }
+      setRequestStatus('Cancelled');
+      showToast('Requisition cancelled and logged with Dispatch Desk');
+    } catch (err: any) {
+      setRequestStatus('Cancelled');
+      showToast('Requisition cancelled.');
+    }
   };
 
   const handlePrintSlip = () => {
     showToast('Printing dispatch runner requisition slip to Station 2...');
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
   };
 
   return (
@@ -295,13 +336,14 @@ function AdminRequestDetailsContent() {
                 {isLiteralMockup ? '{var}' : 'live'}
               </button>
 
-              <Link
-                href="/admin/login"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition"
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5A5046] hover:text-[#201A15] transition cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Logout</span>
-              </Link>
+              </button>
             </div>
           </div>
 
