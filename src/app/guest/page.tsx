@@ -193,7 +193,7 @@ function GuestHomeContent() {
       )}
 
       {/* Main Container - Full Width with Responsive Max Width */}
-      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
+      <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6 sm:space-y-8">
         {/* Top Header Bar */}
         <header className="flex items-center justify-between pt-1 pb-1">
           {/* Brand Monogram & Name */}
@@ -287,8 +287,8 @@ function GuestHomeContent() {
           </div>
         </div>
 
-        {/* Services Layout (Stacked on mobile, 2-column or 4-grid on desktop) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+        {/* Services Layout (Stacked on mobile, 2-column grid on tablet/desktop) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-7 items-stretch">
           {/* SERVICE 1: Order Food */}
           <section className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-[#EFE9DF] relative overflow-hidden flex flex-col justify-between hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] transition-all">
             {/* Subtle decorative warm background radial arc in top right corner */}
@@ -547,7 +547,7 @@ function GuestHomeContent() {
 
       {/* Fixed Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#EAE3D8] shadow-lg">
-        <div className="w-full max-w-2xl mx-auto flex items-center justify-around h-16 px-4">
+        <div className="w-full max-w-5xl mx-auto flex items-center justify-around h-16 px-4 sm:px-8">
           {/* 1. Home (Active) */}
           <Link
             href="/guest"

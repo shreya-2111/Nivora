@@ -75,7 +75,7 @@ export function BottomNav({ activeOrderCount = 0 }: BottomNavProps) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#EAE3D8] shadow-lg">
-      <div className="max-w-md mx-auto flex h-16 items-center justify-around px-4">
+      <div className="w-full max-w-5xl mx-auto flex h-16 items-center justify-around px-4 sm:px-8">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (

@@ -561,7 +561,7 @@ function AdminOrdersContent() {
           {/* Orders Table Container */}
           <div className="bg-white rounded-2xl border border-[#EFE9DF] shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[700px] text-left text-xs">
                 <thead className="bg-[#FAF7F2] text-[10px] font-bold uppercase tracking-wider text-[#8A8074] border-b border-[#EFE9DF]">
                   <tr>
                     <th className="py-3.5 px-4 sm:px-6">ORDER ID</th>

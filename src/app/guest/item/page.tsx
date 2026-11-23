@@ -142,7 +142,7 @@ function FoodDetailsContent() {
       )}
 
       {/* Main Container - Full Width with Responsive Max Width */}
-      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
+      <main className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-5 sm:space-y-6">
         {/* Top Header Bar */}
         <header className="flex items-center justify-between pt-1 pb-1">
           <div className="flex items-center gap-3">
@@ -327,7 +327,7 @@ function FoodDetailsContent() {
 
       {/* Floating Bottom Delivery & ADD TO CART Action Bar */}
       <div className="fixed bottom-16 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-[#EAE3D9] p-4 shadow-xl">
-        <div className="w-full max-w-2xl mx-auto space-y-2">
+        <div className="w-full max-w-4xl mx-auto space-y-2">
           {/* Mini info row */}
           <div className="flex items-center justify-between text-xs font-bold px-1">
             <div className="flex items-center gap-2 text-[#6D6357]">
@@ -357,7 +357,7 @@ function FoodDetailsContent() {
 
       {/* Fixed Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#EAE3D8] shadow-lg">
-        <div className="w-full max-w-2xl mx-auto flex items-center justify-around h-16 px-4">
+        <div className="w-full max-w-5xl mx-auto flex items-center justify-around h-16 px-4 sm:px-8">
           {/* 1. Home */}
           <Link
             href="/guest"

@@ -152,7 +152,7 @@ function WelcomeGuestContent() {
       )}
 
       {/* Main Container - Full Width with Responsive Max Width */}
-      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
+      <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6 sm:space-y-8">
         {/* Top Header */}
         <header className="flex items-center justify-between pt-1 pb-1">
           <div className="flex items-center gap-3.5">
@@ -269,10 +269,10 @@ function WelcomeGuestContent() {
           </span>
         </div>
 
-        {/* Responsive Grid for Services (Full width 1 col on mobile, 3 cols on large screens) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Responsive Grid for Services (Full width 1 col on mobile, 2 cols on tablet, 3 cols on desktop) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-7 items-stretch">
           {/* SERVICE 1: Order Food */}
-          <section className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-[#EFE9DF] transition-all hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+          <section className="bg-white rounded-2xl p-5 sm:p-6 lg:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-[#EFE9DF] transition-all hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] flex flex-col justify-between h-full">
             <div>
               <Link href="/guest/menu" className="block group">
                 <div className="flex items-start justify-between gap-3">
@@ -287,7 +287,7 @@ function WelcomeGuestContent() {
                         <h4 className="font-serif text-xl sm:text-2xl font-bold text-[#201A15] leading-tight">
                           Order Food
                         </h4>
-                        <span className="inline-block bg-[#EFE8E1] text-[#63584D] text-[9px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full">
+                        <span className="inline-block bg-[#EFE8E1] text-[#63584D] text-[9px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full shrink-0">
                           KITCHEN OPEN
                         </span>
                       </div>
@@ -310,8 +310,8 @@ function WelcomeGuestContent() {
             </div>
 
             {/* Delivery Estimate & Explore CTA Bar */}
-            <div className="mt-5 bg-[#FAF7F2] rounded-xl p-3.5 border border-[#EFE8DF] flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-[#5D554C]">
+            <div className="mt-5 sm:mt-6 bg-[#FAF7F2] rounded-xl p-3 sm:p-3.5 border border-[#EFE8DF] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-[#5D554C] min-w-0 flex-1">
                 <Clock className="w-4 h-4 text-[#715535] shrink-0" />
                 <span className="truncate">
                   Delivery to ROOM {roomDisplay}: approx. 25–35 mins
@@ -329,7 +329,7 @@ function WelcomeGuestContent() {
           </section>
 
           {/* SERVICE 2: Room Service */}
-          <section className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-[#EFE9DF] transition-all hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+          <section className="bg-white rounded-2xl p-5 sm:p-6 lg:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-[#EFE9DF] transition-all hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] flex flex-col justify-between h-full">
             <div>
               <Link
                 href="/guest/services"
@@ -346,7 +346,7 @@ function WelcomeGuestContent() {
                       <h4 className="font-serif text-xl sm:text-2xl font-bold text-[#201A15] leading-tight">
                         Room Service
                       </h4>
-                      <span className="inline-block bg-[#E8E3DD] text-[#5A524A] text-[9px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full">
+                      <span className="inline-block bg-[#E8E3DD] text-[#5A524A] text-[9px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full shrink-0">
                         ATTENDANT ON DUTY
                       </span>
                     </div>
@@ -364,66 +364,66 @@ function WelcomeGuestContent() {
               </Link>
             </div>
 
-            {/* Quick Service Amenity Chips */}
-            <div className="mt-4 flex flex-wrap gap-2 pt-1">
+            {/* Quick Service Amenity Chips in a clean, responsive 3x2 grid */}
+            <div className="mt-5 sm:mt-6 grid grid-cols-3 gap-2">
               {/* Towels */}
               <Link
                 href="/guest/services?category=towels"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer text-center"
               >
-                <TowelsIcon className="w-3.5 h-3.5 text-[#715535]" />
-                <span>Towels</span>
+                <TowelsIcon className="w-3.5 h-3.5 text-[#715535] shrink-0" />
+                <span className="truncate">Towels</span>
               </Link>
 
               {/* Water */}
               <Link
                 href="/guest/services?category=water"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer text-center"
               >
-                <Droplets className="w-3.5 h-3.5 text-[#715535]" />
-                <span>Water</span>
+                <Droplets className="w-3.5 h-3.5 text-[#715535] shrink-0" />
+                <span className="truncate">Water</span>
               </Link>
 
               {/* Toiletries */}
               <Link
                 href="/guest/services?category=toiletries"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer text-center"
               >
-                <Sparkles className="w-3.5 h-3.5 text-[#715535]" />
-                <span>Toiletries</span>
+                <Sparkles className="w-3.5 h-3.5 text-[#715535] shrink-0" />
+                <span className="truncate">Toiletries</span>
               </Link>
 
               {/* Housekeeping */}
               <Link
                 href="/guest/services?category=housekeeping"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer text-center"
               >
-                <BedDouble className="w-3.5 h-3.5 text-[#715535]" />
-                <span>Housekeeping</span>
+                <BedDouble className="w-3.5 h-3.5 text-[#715535] shrink-0" />
+                <span className="truncate">Cleaning</span>
               </Link>
 
               {/* Laundry */}
               <Link
                 href="/guest/services?category=laundry"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer text-center"
               >
-                <Shirt className="w-3.5 h-3.5 text-[#715535]" />
-                <span>Laundry</span>
+                <Shirt className="w-3.5 h-3.5 text-[#715535] shrink-0" />
+                <span className="truncate">Laundry</span>
               </Link>
 
               {/* Maintenance */}
               <Link
                 href="/guest/services?category=maintenance"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#F4EFEB] hover:bg-[#EAE3D9] text-[#463F37] text-xs font-medium border border-[#E5DFD6] transition-colors active:scale-95 cursor-pointer text-center"
               >
-                <Wrench className="w-3.5 h-3.5 text-[#715535]" />
-                <span>Maintenance</span>
+                <Wrench className="w-3.5 h-3.5 text-[#715535] shrink-0" />
+                <span className="truncate">Support</span>
               </Link>
             </div>
           </section>
 
           {/* SERVICE 3: Hotel Assistance */}
-          <section className="bg-white rounded-2xl p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-[#EFE9DF] transition-all hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] flex flex-col justify-between">
+          <section className="bg-white rounded-2xl p-5 sm:p-6 lg:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-[#EFE9DF] transition-all hover:shadow-[0_6px_20px_rgba(0,0,0,0.06)] flex flex-col justify-between h-full md:col-span-2 lg:col-span-1">
             <div>
               <div className="flex items-start gap-3.5">
                 {/* Soft Beige Headset Icon Box */}
@@ -432,9 +432,14 @@ function WelcomeGuestContent() {
                 </div>
 
                 <div>
-                  <h4 className="font-serif text-xl sm:text-2xl font-bold text-[#201A15] leading-tight">
-                    Hotel Assistance
-                  </h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-serif text-xl sm:text-2xl font-bold text-[#201A15] leading-tight">
+                      Hotel Assistance
+                    </h4>
+                    <span className="inline-block bg-[#E8E3DD] text-[#5A524A] text-[9px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full shrink-0">
+                      FRONT DESK 24/7
+                    </span>
+                  </div>
                   <p className="text-xs sm:text-sm text-[#665E55] mt-2 leading-relaxed">
                     Contact reception or message the concierge team directly.
                   </p>
@@ -443,12 +448,12 @@ function WelcomeGuestContent() {
             </div>
 
             {/* Quick Contact Buttons */}
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="mt-5 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Phone Button */}
               <button
                 type="button"
                 onClick={handlePhoneClick}
-                className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-[#FAF7F2] hover:bg-[#F2ECE3] border border-[#EBE3D8] text-[#342D26] text-xs sm:text-sm font-semibold transition active:scale-98 cursor-pointer"
+                className="flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl bg-[#FAF7F2] hover:bg-[#F2ECE3] border border-[#EBE3D8] text-[#342D26] text-xs sm:text-sm font-semibold transition active:scale-98 cursor-pointer w-full"
               >
                 <Phone className="w-4 h-4 text-[#715535] shrink-0" />
                 <span className="truncate">{phoneDisplay}</span>
@@ -458,7 +463,7 @@ function WelcomeGuestContent() {
               <button
                 type="button"
                 onClick={handleWhatsAppClick}
-                className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-[#FDF1E6] hover:bg-[#FAE3CE] border border-[#F6DCBE] text-[#7E4C21] text-xs sm:text-sm font-semibold transition active:scale-98 cursor-pointer"
+                className="flex items-center justify-center gap-2 py-3 px-3.5 rounded-xl bg-[#FDF1E6] hover:bg-[#FAE3CE] border border-[#F6DCBE] text-[#7E4C21] text-xs sm:text-sm font-semibold transition active:scale-98 cursor-pointer w-full"
               >
                 <WhatsAppIcon className="w-4 h-4 text-[#7E4C21] shrink-0" />
                 <span>WhatsApp</span>

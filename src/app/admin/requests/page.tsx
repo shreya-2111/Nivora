@@ -759,7 +759,7 @@ function AdminRoomRequestsContent() {
           {/* Room Requests Table Container */}
           <div className="bg-white rounded-2xl border border-[#EFE9DF] shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full min-w-[760px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-[#F2ECE3] bg-[#FAF8F5]/50">
                     <th className="py-3.5 px-4 sm:px-6 text-[10px] font-bold uppercase tracking-wider text-[#8A8074] w-28">
