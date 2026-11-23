@@ -521,10 +521,10 @@ function AdminRoomsContent() {
           </div>
 
           {/* 4 Metric KPI Stat Cards Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 sm:gap-4">
             {/* Card 1: CONFIGURED ROOMS */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between">
-              <div className="space-y-1">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between min-w-0">
+              <div className="space-y-1 min-w-0">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-[#8A8074]">
                   CONFIGURED ROOMS
                 </p>
@@ -542,8 +542,8 @@ function AdminRoomsContent() {
             </div>
 
             {/* Card 2: ACTIVE & QR SYNCED */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between">
-              <div className="space-y-1">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between min-w-0">
+              <div className="space-y-1 min-w-0">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-[#8A8074]">
                   ACTIVE &amp; QR SYNCED
                 </p>
@@ -561,8 +561,8 @@ function AdminRoomsContent() {
             </div>
 
             {/* Card 3: INACTIVE / CLEANING */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between">
-              <div className="space-y-1">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between min-w-0">
+              <div className="space-y-1 min-w-0">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-[#8A8074]">
                   INACTIVE / CLEANING
                 </p>
@@ -580,13 +580,11 @@ function AdminRoomsContent() {
             </div>
 
             {/* Card 4: MESH TELEMETRY */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#8A8074]">
-                    MESH TELEMETRY
-                  </p>
-                </div>
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#EFE9DF] shadow-2xs flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap min-w-0">
+              <div className="space-y-1 min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-[#8A8074]">
+                  MESH TELEMETRY
+                </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="font-serif text-2xl sm:text-3xl font-bold text-[#201A15]">
                     Terminal
@@ -595,7 +593,7 @@ function AdminRoomsContent() {
                 </div>
               </div>
 
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E8E2D8] text-[10px] font-bold text-[#8C5D29]">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E8E2D8] text-[10px] font-bold text-[#8C5D29] shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                 <span>Live</span>
               </div>
