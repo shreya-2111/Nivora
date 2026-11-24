@@ -39,7 +39,7 @@ export async function getGuest(req: NextRequest): Promise<Guest | null> {
     // QR must still be active and the room must still be ACTIVE
     const result = await pool.query(
       `SELECT q.id FROM qr_codes q JOIN rooms r ON r.id = q.room_id
-       WHERE q.id = $1 AND q.is_active = TRUE AND r.status = 'ACTIVE'`,
+       WHERE q.id = $1 AND q.is_active = TRUE AND UPPER(r.status) = 'ACTIVE'`,
       [data.qrId]
     );
     // issuedAt = when this guest session started (so a guest never sees orders of earlier guests)

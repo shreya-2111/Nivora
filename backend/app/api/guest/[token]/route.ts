@@ -17,7 +17,7 @@ export const GET = safe(async (req: NextRequest, { params }) => {
   const result = await pool.query(
     `SELECT q.id AS qr_id, q.room_id, r.room_number, r.floor
      FROM qr_codes q JOIN rooms r ON r.id = q.room_id
-     WHERE q.token = $1 AND q.is_active = TRUE AND r.status = 'ACTIVE'`,
+     WHERE q.token = $1 AND q.is_active = TRUE AND UPPER(r.status) = 'ACTIVE'`,
     [token]
   );
   const found = result.rows[0];
